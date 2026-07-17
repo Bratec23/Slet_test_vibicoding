@@ -209,32 +209,26 @@
               </div>
               <div class="form-row">
                 <div class="form-group">
-                  <label class="form-label" for="calc-total">Норма дней</label>
-                  <input class="form-input" id="calc-total" type="number" min="1" max="31" value="22" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="calc-bonus">Премия, %</label>
-                  <input class="form-input" id="calc-bonus" type="number" min="0" max="100" step="0.1" value="10">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="calc-ot-hours">Сверхурочно, часов</label>
-                  <input class="form-input" id="calc-ot-hours" type="number" min="0" step="0.5" value="0">
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="calc-ot-rate">Ставка сверхурочных ₽/ч</label>
-                  <input class="form-input" id="calc-ot-rate" type="number" min="0" step="0.01" value="0">
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="calc-deductions">Удержания, ₽</label>
-                  <input class="form-input" id="calc-deductions" type="number" min="0" step="0.01" value="0">
+                  <label class="form-label" for="calc-working">Рабочих дней в месяце</label>
+                  <input class="form-input" id="calc-working" type="number" min="1" max="31" value="22" required>
                 </div>
                 <div class="form-group">
                   <label class="form-label" for="calc-tax">НДФЛ, %</label>
-                  <input class="form-input" id="calc-tax" type="number" min="0" max="100" step="0.1" value="13">
+                  <input class="form-input" id="calc-tax" type="number" min="0" max="100" step="0.1" value="13" required>
+                </div>
+              </div>
+              <div class="margin-header">
+                <label class="form-label" style="margin:0">Маржа за период, ₽</label>
+                <button type="button" class="btn-info" onclick="App.showMarginHelp()" title="Какие столбцы отчёта суммировать">Справка</button>
+              </div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label" for="calc-svc-margin">Маржа с услуг</label>
+                  <input class="form-input" id="calc-svc-margin" type="number" min="0" step="0.01" value="0" required>
+                </div>
+                <div class="form-group">
+                  <label class="form-label" for="calc-goods-margin">Маржа с товара</label>
+                  <input class="form-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required>
                 </div>
               </div>
               <button class="btn-primary" type="submit">Рассчитать и сохранить</button>
