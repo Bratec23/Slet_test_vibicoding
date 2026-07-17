@@ -177,6 +177,32 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
 .help-formula { background: var(--color-surface-2); border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: var(--space-3); font-size: var(--text-sm); display: flex; flex-direction: column; gap: 4px; color: var(--color-text-muted); }
 .help-formula b { color: var(--color-text); }
 
+.modal-formula { max-width: 560px; }
+.formula-section { background: var(--color-surface-2); border: 1px solid var(--color-divider); border-radius: var(--radius-md); padding: var(--space-3) var(--space-4); margin-bottom: var(--space-3); }
+.formula-section-title { font-size: var(--text-sm); font-weight: 700; color: var(--color-text); margin-bottom: var(--space-2); }
+.formula-hint { font-size: var(--text-xs); font-weight: 500; color: var(--color-text-muted); margin-left: var(--space-2); }
+.formula-line { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: var(--text-sm); padding: 4px 0; }
+.ftxt { font-weight: 600; color: var(--color-text-muted); }
+.fsep { color: var(--color-text-faint); font-weight: 700; }
+.fval { background: var(--color-surface); border: 1px solid var(--color-divider); padding: 2px 8px; border-radius: 4px; font-weight: 600; color: var(--color-text); }
+.fresult { font-weight: 700; color: var(--color-primary); margin-left: auto; }
+.fresult-mute { color: var(--color-error); }
+.formula-sub { font-size: var(--text-xs); color: var(--color-text-faint); margin-top: var(--space-2); line-height: 1.4; }
+.formula-sub b { color: var(--color-text-muted); font-weight: 600; }
+.formula-total { background: linear-gradient(90deg, var(--color-primary) 0%, #c00058 100%); border-color: transparent; padding: var(--space-4); }
+.formula-total .formula-line { font-size: var(--text-lg); padding: 0; }
+.ftotal-label { font-weight: 700; color: white; font-family: var(--font-body); }
+.ftotal-value { font-weight: 800; color: white; font-size: var(--text-xl); margin-left: auto; font-family: var(--font-mono); }
+.formula-total .fsep { color: rgba(255,255,255,0.6); }
+
+.cr-actions { margin-top: var(--space-4); display: flex; justify-content: flex-end; }
+.btn-excel { display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-4); background: var(--color-success-bg); color: var(--color-success); border: 1px solid rgba(26,138,74,0.3); border-radius: var(--radius-md); font-size: var(--text-sm); font-weight: 600; cursor: pointer; transition: background var(--transition); }
+.btn-excel:hover { background: var(--color-success); color: white; }
+
+.net-cell { color: var(--color-success); font-weight: 700; }
+.row-action { text-align: center; }
+.row-action .btn-ghost { padding: 4px 6px; }
+
 @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
 .fade-in { animation: fadeIn 0.3s ease forwards; }
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -192,4 +218,41 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
   .main-content { margin-left: 0; }
   .payroll-grid { grid-template-columns: 1fr; }
   .form-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1100px) {
+  .data-table thead { display: none; }
+  .data-table, .data-table tbody, .data-table tr, .data-table td { display: block; width: 100%; }
+  .data-table tbody tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    background: var(--color-surface-2);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-md);
+    padding: var(--space-3);
+    margin-bottom: var(--space-3);
+  }
+  .data-table tbody td {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border: none;
+    padding: 4px 8px;
+    gap: var(--space-2);
+  }
+  .data-table tbody td::before {
+    content: attr(data-label);
+    font-size: var(--text-xs);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-faint);
+  }
+  .data-table tbody td:not([data-label=""]) { white-space: normal; }
+  .data-table tbody td[data-label=""] { display: none; }
+  .data-table tbody td.net-cell { grid-column: 1 / -1; background: var(--color-success-bg); border-radius: var(--radius-sm); padding: 6px 10px; font-size: var(--text-base); }
+  .data-table tbody td[data-label="№"] { font-weight: 700; color: var(--color-primary); grid-column: 1 / -1; font-size: var(--text-xs); padding-bottom: 0; }
+  .data-table tbody td[data-label="№"]::before { content: "Запись "; color: var(--color-text-faint); }
+  .table-wrap { overflow-x: visible; }
 }

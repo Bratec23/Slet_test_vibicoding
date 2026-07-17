@@ -221,6 +221,12 @@ const App = (() => {
           <div class="cr-item"><div class="cr-label">Начислено всего</div><div class="cr-value">${formatMoney(r.gross_pay)}</div></div>
           <div class="cr-item"><div class="cr-label">НДФЛ (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
           <div class="cr-item cr-net"><div class="cr-label">К выплате</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
+        </div>
+        <div class="cr-actions">
+          <button class="btn-excel" onclick="App.exportRecord(${r.id})">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Скачать Excel
+          </button>
         </div>`;
       resBox.style.display = "block";
       loadHistory();
@@ -235,56 +241,80 @@ const App = (() => {
       if (!rows.length) { wrap.innerHTML = '<div class="empty">Нет сохранённых расчётов</div>'; return; }
       wrap.innerHTML = `
         <table class="data-table">
-          <thead><tr><th>#</th><th>Период</th><th>Сотрудник</th><th>Грейд</th><th>Дни</th><th>Маржа усл./товар</th><th>Оклад</th><th>Премия</th><th>Gross</th><th>НДФЛ</th><th>К выплате</th></tr></thead>
+          <thead><tr><th>№</th><th>Период</th><th>Сотрудник</th><th>Грейд</th><th>Дни</th><th>Маржа усл./товар</th><th>Оклад</th><th>Премия</th><th>Gross</th><th>НДФЛ</th><th>К выплате</th><th></th></tr></thead>
           <tbody>${rows.map((r, i) => {
             const emp = employeesCache.find(e => e.id === r.employee_id);
             return `<tr>
-              <td class="tnum">${i + 1}</td>
-              <td>${escapeHtml(r.period)}</td>
-              <td>${emp ? escapeHtml(emp.full_name) : ("ID " + r.employee_id)}</td>
-              <td class="text-muted">${escapeHtml(emp ? (emp.grade_name || emp.grade) : r.grade)}</td>
-              <td class="tnum">${r.worked_days}/${r.working_days}</td>
-              <td class="tnum">${formatMoney(r.service_margin)} / ${formatMoney(r.goods_margin)}</td>
-              <td class="tnum">${formatMoney(r.accrued_base)}</td>
-              <td class="tnum">${formatMoney(r.bonus_total)}</td>
-              <td class="tnum">${formatMoney(r.gross_pay)}</td>
-              <td class="tnum">-${formatMoney(r.tax_amount)}</td>
-              <td class="tnum" style="color:var(--color-success)">${formatMoney(r.net_pay)}</td>
+              <td data-label="№" class="tnum">${i + 1}</td>
+              <td data-label="Период">${escapeHtml(r.period)}</td>
+              <td data-label="Сотрудник">${emp ? escapeHtml(emp.full_name) : ("ID " + r.employee_id)}</td>
+              <td data-label="Грейд" class="text-muted">${escapeHtml(emp ? (emp.grade_name || emp.grade) : r.grade)}</td>
+              <td data-label="Дни" class="tnum">${r.worked_days}/${r.working_days}</td>
+              <td data-label="Маржа усл./товар" class="tnum">${formatMoney(r.service_margin)} / ${formatMoney(r.goods_margin)}</td>
+              <td data-label="Оклад" class="tnum">${formatMoney(r.accrued_base)}</td>
+              <td data-label="Премия" class="tnum">${formatMoney(r.bonus_total)}</td>
+              <td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td>
+              <td data-label="НДФЛ" class="tnum">-${formatMoney(r.tax_amount)}</td>
+              <td data-label="К выплате" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
+              <td data-label="" class="row-action"><button class="btn-ghost btn-sm" onclick="App.exportRecord(${r.id})" title="Скачать Excel">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              </button></td>
             </tr>`;
           }).join("")}</tbody>
         </table>`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
   }
 
-  function showMarginHelp() {
+  function showFormulaApprove() {
+    const empId = parseInt($("#calc-employee").value);
+    const emp = employeesCache.find(e => e.id === empId);
+    const g = gradesCache.find(x => x.id === (emp ? emp.grade : (gradesCache[0] ? gradesCache[0].id : "trainee"))) || gradesCache[0] || { bonus_percent: 4, service_factor: 0.5, base_salary: 45000 };
+    const svc = parseFloat($("#calc-svc-margin").value) || 0;
+    const goods = parseFloat($("#calc-goods-margin").value) || 0;
+    const worked = parseInt($("#calc-worked").value) || 0;
+    const working = parseInt($("#calc-working").value) || 1;
+    const tax = parseFloat($("#calc-tax").value) || 13;
+    const accrued = round2(g.base_salary * worked / working);
+    const svcBonus = round2(svc * g.service_factor * g.bonus_percent / 100);
+    const goodsBonus = round2(goods * g.bonus_percent / 100);
+    const bonusTotal = round2(svcBonus + goodsBonus);
+    const gross = round2(accrued + bonusTotal);
+    const taxAmt = round2(gross * tax / 100);
+    const net = round2(gross - taxAmt);
+    return { g, svc, goods, worked, working, tax, accrued, svcBonus, goodsBonus, bonusTotal, gross, taxAmt, net };
+  }
+
+  function showFormula() {
+    const f = showFormulaApprove();
     const overlay = document.createElement("div");
     overlay.className = "modal-bg visible";
     overlay.innerHTML = `
-      <div class="modal">
-        <div class="modal-title">Справка: какие столбцы отчёта суммировать</div>
-        <div class="help-block">
-          <div class="help-label">Маржа с услуг</div>
-          <div class="help-hint">Суммируются столбцы отчёта:</div>
-          <div class="help-list">
-            <span class="help-tag">Услуги</span>
-            <span class="help-tag">ЦТО</span>
-            <span class="help-tag">Регулярное сопровождение — ИТС</span>
-            <span class="help-tag">Консалтинг</span>
-            <span class="help-tag">Доставка</span>
-          </div>
+      <div class="modal modal-formula">
+        <div class="modal-title">Формула расчёта</div>
+        <div class="formula-section">
+          <div class="formula-section-title">1. Начисление по окладу</div>
+          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">×</span><span class="fval">${f.worked}</span><span class="fsep">÷</span><span class="fval">${f.working}</span><span class="fsep">=</span><span class="fresult">${formatMoney(f.accrued)}</span></div>
         </div>
-        <div class="help-block">
-          <div class="help-label">Маржа с товара</div>
-          <div class="help-hint">Суммируются столбцы отчёта:</div>
-          <div class="help-list">
-            <span class="help-tag">Торговое оборудование</span>
-            <span class="help-tag">1С</span>
-            <span class="help-tag">Промышленное оборудование</span>
-          </div>
+        <div class="formula-section">
+          <div class="formula-section-title">2. Премия за услуги <span class="formula-hint">× коэффициент 0,5 · ${f.g.bonus_percent}%</span></div>
+          <div class="formula-line"><span class="ftxt">Маржа услуг</span><span class="fsep">×</span><span class="fval">${f.g.service_factor.toFixed(2)}</span><span class="fsep">×</span><span class="fval">${f.g.bonus_percent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(f.svcBonus)}</span></div>
+          <div class="formula-sub">Маржа услуг = сумма столбцов отчёта: <b>Услуги, ЦТО, ИТС, Консалтинг, Доставка</b></div>
         </div>
-        <div class="help-formula">
-          <div><b>Премия за услуги</b> = Маржа услуг × ${escapeHtml(gradeServiceFactor())} × ${escapeHtml(gradePercent())}</div>
-          <div><b>Премия за товар</b> = Маржа товара × ${escapeHtml(gradePercent())}</div>
+        <div class="formula-section">
+          <div class="formula-section-title">3. Премия за товар <span class="formula-hint">${f.g.bonus_percent}%</span></div>
+          <div class="formula-line"><span class="ftxt">Маржа товара</span><span class="fsep">×</span><span class="fval">${f.g.bonus_percent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(f.goodsBonus)}</span></div>
+          <div class="formula-sub">Маржа товара = сумма столбцов отчёта: <b>Торговое оборудование, 1С, Промышленное оборудование</b></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">4. Начислено всего</div>
+          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">+</span><span class="ftxt">Премия услуг</span><span class="fsep">+</span><span class="ftxt">Премия товара</span><span class="fsep">=</span><span class="fresult">${formatMoney(f.gross)}</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">5. НДФЛ</div>
+          <div class="formula-line"><span class="ftxt">${f.tax}%</span><span class="fsep">от</span><span class="fval">${formatMoney(f.gross)}</span><span class="fsep">=</span><span class="fresult fresult-mute">-${formatMoney(f.taxAmt)}</span></div>
+        </div>
+        <div class="formula-section formula-total">
+          <div class="formula-line"><span class="ftotal-label">К выплате</span><span class="fsep">=</span><span class="ftotal-value">${formatMoney(f.net)}</span></div>
         </div>
         <div class="modal-actions">
           <button class="btn-accent" onclick="this.closest('.modal-bg').remove()">Понятно</button>
@@ -293,8 +323,29 @@ const App = (() => {
     document.body.appendChild(overlay);
   }
 
+  async function exportRecord(recordId) {
+    try {
+      const token = getToken();
+      const res = await fetch(`/api/payroll/records/${recordId}/export`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) {
+        const msg = await res.text();
+        throw new Error(msg || `Ошибка ${res.status}`);
+      }
+      const blob = await res.blob();
+      const disposition = res.headers.get("Content-Disposition") || "";
+      const m = disposition.match(/filename="?([^";\n]+)"?/);
+      const filename = m ? m[1] : `Raschet_ZP_${recordId}.xlsx`;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { alert(e.message); }
+  }
+
   function gradeServiceFactor() { const g = gradesCache[0]; return g ? g.service_factor.toFixed(2) : "0.50"; }
   function gradePercent() { const g = gradesCache[0]; return g ? (g.bonus_percent + "%") : "4%"; }
+  function round2(v) { return Math.round((Number(v) + Number.EPSILON) * 100) / 100; }
 
   function escapeHtml(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -323,7 +374,7 @@ const App = (() => {
     init, switchAuthTab, submitAuth, logout, navigate,
     loadEmployees, loadHistory, loadProfile,
     showEmployeeForm, editEmployee, deleteEmployee, calculate,
-    toggleTheme, showMarginHelp, onGradeChange,
+    toggleTheme, showFormula, onGradeChange, exportRecord,
   };
 })();
 

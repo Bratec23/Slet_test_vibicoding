@@ -1,11 +1,14 @@
 from typing import List
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.export import generate_payroll_xlsx
 from app.grades import GRADES, get_grade
 from app.models import Employee, PayrollRecord, User
 from app.routers.auth import get_current_user
@@ -225,3 +228,23 @@ def history(db: Session = Depends(get_db), user: User = Depends(get_current_user
         .all()
     )
     return [_payroll_out(rec, emp) for rec, emp in rows]
+
+
+@router.get("/records/{record_id}/export")
+def export_record(record_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    record = db.get(PayrollRecord, record_id)
+    if not record:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Расчёт не найден")
+    emp = db.get(Employee, record.employee_id)
+    if not emp or emp.user_id != user.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Расчёт не найден")
+    content = generate_payroll_xlsx(record, emp)
+    safe_name = (emp.full_name or "employee").replace(" ", "_").replace("/", "_")
+    ascii_name = "Raschet_ZP_" + str(record.id) + "_" + record.period
+    utf8_name = f"Raschet_ZP_{safe_name}_{record.period}.xlsx"
+    disposition = f"attachment; filename=\"{ascii_name}.xlsx\"; filename*=UTF-8''{quote(utf8_name)}"
+    return Response(
+        content=content,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": disposition},
+    )
