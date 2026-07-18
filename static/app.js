@@ -1,4 +1,4 @@
-﻿const App = (() => {
+const App = (() => {
   const TOKEN_KEY = "bitserves_token";
   const USER_KEY = "bitserves_user";
 
@@ -29,7 +29,7 @@
     let data = null;
     if (text) { try { data = JSON.parse(text); } catch { data = text; } }
     if (!res.ok) {
-      const msg = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : `РћС€РёР±РєР° ${res.status}`;
+      const msg = (data && data.detail) ? (typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail)) : `Ошибка ${res.status}`;
       throw new Error(msg);
     }
     return data;
@@ -49,7 +49,7 @@
     authMode = mode;
     $$("#login-tabs .tab").forEach(t => t.classList.toggle("active", t.dataset.tab === mode));
     $("#signup-fields").style.display = mode === "signup" ? "block" : "none";
-    $("#auth-submit").textContent = mode === "signup" ? "Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ" : "Р’РѕР№С‚Рё РІ СЃРёСЃС‚РµРјСѓ";
+    $("#auth-submit").textContent = mode === "signup" ? "Зарегистрироваться" : "Войти в систему";
     $("#auth-error").style.display = "none";
     if (mode === "signup") loadCatalogForSignup();
   }
@@ -61,7 +61,7 @@
     const gradeGroup = $("#grade-group");
     if (gradeGroup) gradeGroup.style.display = role === "manager" ? "block" : "none";
     const pw = $("#password");
-    pw.placeholder = "Р’РІРµРґРёС‚Рµ РїР°СЂРѕР»СЊ";
+    pw.placeholder = "Введите пароль";
   }
 
   async function loadCatalogForSignup() {
@@ -70,35 +70,35 @@
       if (!gradesCache.length) gradesCache = await api("/api/grades", { auth: false });
       renderDeptSelect();
       renderGradeSelect();
-    } catch (e) { showAuthError("РќРµ СѓРґР°Р»РѕСЃСЊ Р·Р°РіСЂСѓР·РёС‚СЊ СЃРїСЂР°РІРѕС‡РЅРёРєРё: " + e.message); }
+    } catch (e) { showAuthError("Не удалось загрузить справочники: " + e.message); }
   }
 
   function renderDeptSelect() {
     const sel = $("#dept");
-    sel.innerHTML = '<option value="">вЂ” Р’С‹Р±РµСЂРёС‚Рµ РѕС‚РґРµР» вЂ”</option>' + departmentsCache.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
+    sel.innerHTML = '<option value="">— Выберите отдел —</option>' + departmentsCache.map(d => `<option value="${d.id}">${escapeHtml(d.name)}</option>`).join("");
   }
   function renderGradeSelect() {
     const sel = $("#grade");
-    sel.innerHTML = '<option value="">вЂ” Р’С‹Р±РµСЂРёС‚Рµ РіСЂРµР№Рґ вЂ”</option>' + gradesCache.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("");
+    sel.innerHTML = '<option value="">— Выберите грейд —</option>' + gradesCache.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("");
   }
 
   async function onDeptChange() {
     const deptId = parseInt($("#dept").value);
-    if (!deptId) { $("#pos").innerHTML = '<option value="">РЎРЅР°С‡Р°Р»Р° РІС‹Р±РµСЂРёС‚Рµ РѕС‚РґРµР»</option>'; return; }
+    if (!deptId) { $("#pos").innerHTML = '<option value="">Сначала выберите отдел</option>'; return; }
     try {
       positionsCache = await api(`/api/positions?department_id=${deptId}`, { auth: false });
       const sel = $("#pos");
-      if (!positionsCache.length) { sel.innerHTML = '<option value="">РќРµС‚ РґРѕСЃС‚СѓРїРЅС‹С… РґРѕР»Р¶РЅРѕСЃС‚РµР№</option>'; return; }
-      sel.innerHTML = '<option value="">вЂ” Р’С‹Р±РµСЂРёС‚Рµ РґРѕР»Р¶РЅРѕСЃС‚СЊ вЂ”</option>' + positionsCache.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
-    } catch (e) { $("#pos").innerHTML = '<option value="">РћС€РёР±РєР° Р·Р°РіСЂСѓР·РєРё</option>'; }
+      if (!positionsCache.length) { sel.innerHTML = '<option value="">Нет доступных должностей</option>'; return; }
+      sel.innerHTML = '<option value="">— Выберите должность —</option>' + positionsCache.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join("");
+    } catch (e) { $("#pos").innerHTML = '<option value="">Ошибка загрузки</option>'; }
   }
 
   async function submitAuth() {
     const email = $("#email").value.trim();
     const password = $("#password").value;
-    if (!email || !password) { showAuthError("Р—Р°РїРѕР»РЅРёС‚Рµ РїРѕС‡С‚Сѓ Рё РїР°СЂРѕР»СЊ"); return; }
+    if (!email || !password) { showAuthError("Заполните почту и пароль"); return; }
     const btn = $("#auth-submit");
-    btn.disabled = true; btn.textContent = "РџРѕРґРѕР¶РґРёС‚РµвЂ¦";
+    btn.disabled = true; btn.textContent = "Подождите…";
     try {
       if (authMode === "signup") {
         const full_name = $("#full_name").value.trim();
@@ -106,9 +106,9 @@
         const posId = parseInt($("#pos").value);
         const gradeId = $("#grade").value || null;
         const role = document.querySelector('input[name="role"]:checked').value;
-        if (!full_name) { showAuthError("Р’РІРµРґРёС‚Рµ Р¤РРћ"); btn.disabled = false; btn.textContent = "Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ"; return; }
-        if (!deptId || !posId) { showAuthError("Р’С‹Р±РµСЂРёС‚Рµ РѕС‚РґРµР» Рё РґРѕР»Р¶РЅРѕСЃС‚СЊ"); btn.disabled = false; btn.textContent = "Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ"; return; }
-        if (role === "manager" && !gradeId) { showAuthError("Р’С‹Р±РµСЂРёС‚Рµ РіСЂРµР№Рґ"); btn.disabled = false; btn.textContent = "Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ"; return; }
+        if (!full_name) { showAuthError("Введите ФИО"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
+        if (!deptId || !posId) { showAuthError("Выберите отдел и должность"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
+        if (role === "manager" && !gradeId) { showAuthError("Выберите грейд"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
         const data = await api("/api/auth/register", { method: "POST", auth: false, body: { email, password, full_name, department_id: deptId, position_id: posId, grade_id: gradeId, role } });
         setSession(data.access_token, data.user);
         enterApp();
@@ -118,10 +118,10 @@
         enterApp();
       }
     } catch (e) {
-      showAuthError(e.message || "РћС€РёР±РєР° Р°РІС‚РѕСЂРёР·Р°С†РёРё");
+      showAuthError(e.message || "Ошибка авторизации");
     } finally {
       btn.disabled = false;
-      btn.textContent = authMode === "signup" ? "Р—Р°СЂРµРіРёСЃС‚СЂРёСЂРѕРІР°С‚СЊСЃСЏ" : "Р’РѕР№С‚Рё РІ СЃРёСЃС‚РµРјСѓ";
+      btn.textContent = authMode === "signup" ? "Зарегистрироваться" : "Войти в систему";
     }
   }
 
@@ -138,26 +138,26 @@
     $("#app-screen").classList.add("active");
     $("#sidebar-username").textContent = user.full_name || user.email.split("@")[0];
     $("#sidebar-email").textContent = user.email;
-    $("#sidebar-dept-badge").textContent = "РћС‚РґРµР»: " + (user.department ? user.department.name : "вЂ”");
+    $("#sidebar-dept-badge").textContent = "Отдел: " + (user.department ? user.department.name : "—");
     $("#user-avatar").textContent = (user.full_name || user.email)[0].toUpperCase();
-    $("#hello-name").textContent = user.full_name || "РјРµРЅРµРґР¶РµСЂ";
+    $("#hello-name").textContent = user.full_name || "менеджер";
 
     const deptCode = user.department ? user.department.code : "";
     if (deptCode === "dev_art") {
       $("#nav-payroll").classList.remove("disabled");
       $("#payroll-badge").style.display = "inline-block";
       $("#svc-payroll").classList.remove("disabled");
-      $("#svc-payroll-status").textContent = "Р”РѕСЃС‚СѓРїРµРЅ";
+      $("#svc-payroll-status").textContent = "Доступен";
       $("#svc-payroll-status").className = "service-status active-open";
     } else {
       $("#nav-payroll").classList.add("disabled");
-      $("#nav-payroll").onclick = () => toast("РћС‚РґРµР» РЎРѕРїСЂРѕРІРѕР¶РґРµРЅРёРµ вЂ” РјРёРєСЂРѕСЃРµСЂРІРёСЃ РІ СЂР°Р·СЂР°Р±РѕС‚РєРµ", "info");
+      $("#nav-payroll").onclick = () => toast("Отдел Сопровождение — микросервис в разработке", "info");
       $("#payroll-badge").style.display = "none";
       $("#svc-payroll").classList.add("disabled");
-      $("#svc-payroll-status").textContent = "РЎРєРѕСЂРѕ";
+      $("#svc-payroll-status").textContent = "Скоро";
       $("#svc-payroll-status").className = "service-status soon";
-      $("#svc-payroll").onclick = () => toast("РћС‚РґРµР» РЎРѕРїСЂРѕРІРѕР¶РґРµРЅРёРµ вЂ” РјРёРєСЂРѕСЃРµСЂРІРёСЃ РІ СЂР°Р·СЂР°Р±РѕС‚РєРµ", "info");
-      toast("РћС‚РґРµР» В«" + (user.department ? user.department.name : "") + "В» вЂ” РјРёРєСЂРѕСЃРµСЂРІРёСЃ Р—Рџ РІ СЂР°Р·СЂР°Р±РѕС‚РєРµ", "info");
+      $("#svc-payroll").onclick = () => toast("Отдел Сопровождение — микросервис в разработке", "info");
+      toast("Отдел «" + (user.department ? user.department.name : "") + "» — микросервис ЗП в разработке", "info");
     }
     navigate("menu");
   }
@@ -168,7 +168,7 @@
     $("#head-screen").classList.add("active");
     $("#head-username").textContent = user.full_name || user.email.split("@")[0];
     $("#head-email").textContent = user.email;
-    $("#head-dept-badge").textContent = "РћС‚РґРµР»: " + (user.department ? user.department.name : "вЂ”");
+    $("#head-dept-badge").textContent = "Отдел: " + (user.department ? user.department.name : "—");
     $("#head-avatar").textContent = (user.full_name || user.email)[0].toUpperCase();
     const now = new Date().toISOString().slice(0, 7);
     if ($("#head-team-period")) $("#head-team-period").value = now;
@@ -205,22 +205,22 @@
     const user = getUser();
     if (!user) return;
     const g = user.grade || {};
-    const planText = g.has_plan && g.plan_margin != null ? formatMoney(g.plan_margin) : "вЂ”";
+    const planText = g.has_plan && g.plan_margin != null ? formatMoney(g.plan_margin) : "—";
     $("#grade-pill").innerHTML = `
       <div class="gp-grid">
-        <div class="gp-item"><div class="gp-label">Р¤РРћ</div><div class="gp-value">${escapeHtml(user.full_name || "вЂ”")}</div></div>
-        <div class="gp-item"><div class="gp-label">Р”РѕР»Р¶РЅРѕСЃС‚СЊ</div><div class="gp-value">${escapeHtml(user.position ? user.position.name : "вЂ”")}</div></div>
-        <div class="gp-item"><div class="gp-label">Р“СЂРµР№Рґ</div><div class="gp-value">${escapeHtml(g.name || "вЂ”")}</div></div>
-        <div class="gp-item"><div class="gp-label">РћРєР»Р°Рґ</div><div class="gp-value">${g.base_salary != null ? formatMoney(g.base_salary) : "вЂ”"}</div></div>
-        <div class="gp-item"><div class="gp-label">РљРѕСЌС„. СѓСЃР»СѓРі</div><div class="gp-value">${g.service_factor != null ? Number(g.service_factor).toFixed(2) : "вЂ”"}</div></div>
-        <div class="gp-item"><div class="gp-label">РџР»Р°РЅ РїРѕ РјР°СЂР¶Рµ</div><div class="gp-value">${planText}</div></div>
+        <div class="gp-item"><div class="gp-label">ФИО</div><div class="gp-value">${escapeHtml(user.full_name || "—")}</div></div>
+        <div class="gp-item"><div class="gp-label">Должность</div><div class="gp-value">${escapeHtml(user.position ? user.position.name : "—")}</div></div>
+        <div class="gp-item"><div class="gp-label">Грейд</div><div class="gp-value">${escapeHtml(g.name || "—")}</div></div>
+        <div class="gp-item"><div class="gp-label">Оклад</div><div class="gp-value">${g.base_salary != null ? formatMoney(g.base_salary) : "—"}</div></div>
+        <div class="gp-item"><div class="gp-label">Коэф. услуг</div><div class="gp-value">${g.service_factor != null ? Number(g.service_factor).toFixed(2) : "—"}</div></div>
+        <div class="gp-item"><div class="gp-label">План по марже</div><div class="gp-value">${planText}</div></div>
       </div>
       <div id="plan-progress" class="plan-progress" style="display:${g.has_plan ? "block" : "none"}">
         <div class="plan-progress-row">
-          <span class="plan-label">РњР°СЂР¶Р° Р·Р° РїРµСЂРёРѕРґ:</span> <b id="plan-margin-now">0 в‚Ѕ</b>
-          <span class="plan-muted">| РњР°СЂР¶Р° РґР»СЏ РїР»Р°РЅР° (в€’5% РќР”РЎ): <b id="plan-margin-net">0 в‚Ѕ</b></span>
-          <span class="plan-muted">| Р’С‹РїРѕР»РЅРµРЅРѕ: <b id="plan-perf">0%</b></span>
-          <span class="plan-muted">| РЎС‚СѓРїРµРЅСЊ: <b id="plan-tier">вЂ”</b></span>
+          <span class="plan-label">Маржа за период:</span> <b id="plan-margin-now">0 ₽</b>
+          <span class="plan-muted">| Маржа для плана (−5% НДС): <b id="plan-margin-net">0 ₽</b></span>
+          <span class="plan-muted">| Выполнено: <b id="plan-perf">0%</b></span>
+          <span class="plan-muted">| Ступень: <b id="plan-tier">—</b></span>
         </div>
         <div class="plan-bar-wrap"><div class="plan-bar" id="plan-bar"></div>
           <div class="plan-bar-tick" style="left:45%"></div>
@@ -325,8 +325,8 @@
     historyOpen = !historyOpen;
     $("#history-collapse").style.display = historyOpen ? "block" : "none";
     $("#history-toggle").innerHTML = historyOpen
-      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg> РЎРєСЂС‹С‚СЊ РёСЃС‚РѕСЂРёСЋ'
-      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg> РџРѕСЃРјРѕС‚СЂРµС‚СЊ РёСЃС‚РѕСЂРёСЋ';
+      ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg> Скрыть историю'
+      : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg> Посмотреть историю';
     if (historyOpen) loadSummary();
   }
 
@@ -344,22 +344,22 @@
     try {
       const r = await api("/api/payroll/calculate", { method: "POST", body });
       resBox.innerHTML = `
-        <div class="cr-title">Р Р°СЃС‡С‘С‚ Р·Р° ${escapeHtml(r.period)} вЂ” СЃРѕС…СЂР°РЅС‘РЅ</div>
+        <div class="cr-title">Расчёт за ${escapeHtml(r.period)} — сохранён</div>
         <div class="cr-grid">
-          <div class="cr-item"><div class="cr-label">РќР°С‡РёСЃР»РµРЅРѕ (РѕРєР»Р°Рґ)</div><div class="cr-value">${formatMoney(r.accrued_base)}</div></div>
-          <div class="cr-item"><div class="cr-label">РџСЂРµРјРёСЏ Р·Р° СѓСЃР»СѓРіРё</div><div class="cr-value">${formatMoney(r.services_bonus)}</div></div>
-          <div class="cr-item"><div class="cr-label">РџСЂРµРјРёСЏ Р·Р° С‚РѕРІР°СЂ</div><div class="cr-value">${formatMoney(r.goods_bonus)}</div></div>
-          <div class="cr-item"><div class="cr-label">РџСЂРµРјРёСЏ РёС‚РѕРіРѕ (${r.bonus_percent}%)</div><div class="cr-value">${formatMoney(r.bonus_total)}</div></div>
-          <div class="cr-item"><div class="cr-label">РќР°С‡РёСЃР»РµРЅРѕ РІСЃРµРіРѕ</div><div class="cr-value">${formatMoney(r.gross_pay)}</div></div>
-          <div class="cr-item"><div class="cr-label">РќР”Р¤Р› (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
-          <div class="cr-item cr-net"><div class="cr-label">Рљ РІС‹РїР»Р°С‚Рµ</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
+          <div class="cr-item"><div class="cr-label">Начислено (оклад)</div><div class="cr-value">${formatMoney(r.accrued_base)}</div></div>
+          <div class="cr-item"><div class="cr-label">Премия за услуги</div><div class="cr-value">${formatMoney(r.services_bonus)}</div></div>
+          <div class="cr-item"><div class="cr-label">Премия за товар</div><div class="cr-value">${formatMoney(r.goods_bonus)}</div></div>
+          <div class="cr-item"><div class="cr-label">Премия итого (${r.bonus_percent}%)</div><div class="cr-value">${formatMoney(r.bonus_total)}</div></div>
+          <div class="cr-item"><div class="cr-label">Начислено всего</div><div class="cr-value">${formatMoney(r.gross_pay)}</div></div>
+          <div class="cr-item"><div class="cr-label">НДФЛ (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
+          <div class="cr-item cr-net"><div class="cr-label">К выплате</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
         </div>
         <div class="cr-actions">
-          <button class="btn-excel" onclick="App.exportRecord(${r.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>РЎРєР°С‡Р°С‚СЊ Excel</button>
+          <button class="btn-excel" onclick="App.exportRecord(${r.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать Excel</button>
         </div>`;
       resBox.style.display = "block";
       loadHistory();
-      toast("Р Р°СЃС‡С‘С‚ СЃРѕС…СЂР°РЅС‘РЅ", "success");
+      toast("Расчёт сохранён", "success");
     } catch (e) { toast(e.message, "error"); }
   }
 
@@ -368,22 +368,22 @@
     if (!wrap) return;
     try {
       const rows = await api("/api/payroll/history");
-      if (!rows.length) { wrap.innerHTML = '<div class="empty">РќРµС‚ СЃРѕС…СЂР°РЅС‘РЅРЅС‹С… СЂР°СЃС‡С‘С‚РѕРІ</div>'; return; }
+      if (!rows.length) { wrap.innerHTML = '<div class="empty">Нет сохранённых расчётов</div>'; return; }
       wrap.innerHTML = `
         <table class="data-table">
-          <thead><tr><th>в„–</th><th>РџРµСЂРёРѕРґ</th><th>Р“СЂРµР№Рґ</th><th>Р”РЅРё</th><th>РњР°СЂР¶Р° СѓСЃР»./С‚РѕРІР°СЂ</th><th>РћРєР»Р°Рґ</th><th>РџСЂРµРјРёСЏ</th><th>Gross</th><th>РќР”Р¤Р›</th><th>Рљ РІС‹РїР»Р°С‚Рµ</th><th></th></tr></thead>
+          <thead><tr><th>№</th><th>Период</th><th>Грейд</th><th>Дни</th><th>Маржа усл./товар</th><th>Оклад</th><th>Премия</th><th>Gross</th><th>НДФЛ</th><th>К выплате</th><th></th></tr></thead>
           <tbody>${rows.map((r, i) => `<tr>
-            <td data-label="в„–" class="tnum">${i + 1}</td>
-            <td data-label="РџРµСЂРёРѕРґ">${escapeHtml(r.period)}</td>
-            <td data-label="Р“СЂРµР№Рґ" class="text-muted">${escapeHtml(r.grade_name)}</td>
-            <td data-label="Р”РЅРё" class="tnum">${r.worked_days}/${r.working_days}</td>
-            <td data-label="РњР°СЂР¶Р° СѓСЃР»./С‚РѕРІР°СЂ" class="tnum">${formatMoney(r.service_margin)} / ${formatMoney(r.goods_margin)}</td>
-            <td data-label="РћРєР»Р°Рґ" class="tnum">${formatMoney(r.base_salary)}</td>
-            <td data-label="РџСЂРµРјРёСЏ" class="tnum">${formatMoney(r.bonus_total)}</td>
+            <td data-label="№" class="tnum">${i + 1}</td>
+            <td data-label="Период">${escapeHtml(r.period)}</td>
+            <td data-label="Грейд" class="text-muted">${escapeHtml(r.grade_name)}</td>
+            <td data-label="Дни" class="tnum">${r.worked_days}/${r.working_days}</td>
+            <td data-label="Маржа усл./товар" class="tnum">${formatMoney(r.service_margin)} / ${formatMoney(r.goods_margin)}</td>
+            <td data-label="Оклад" class="tnum">${formatMoney(r.base_salary)}</td>
+            <td data-label="Премия" class="tnum">${formatMoney(r.bonus_total)}</td>
             <td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td>
-            <td data-label="РќР”Р¤Р›" class="tnum">-${formatMoney(r.tax_amount)}</td>
-            <td data-label="Рљ РІС‹РїР»Р°С‚Рµ" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
-            <td data-label="" class="row-action"><button class="btn-ghost btn-sm" onclick="App.exportRecord(${r.id})" title="РЎРєР°С‡Р°С‚СЊ Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></td>
+            <td data-label="НДФЛ" class="tnum">-${formatMoney(r.tax_amount)}</td>
+            <td data-label="К выплате" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
+            <td data-label="" class="row-action"><button class="btn-ghost btn-sm" onclick="App.exportRecord(${r.id})" title="Скачать Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></td>
           </tr>`).join("")}</tbody>
         </table>`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
@@ -396,8 +396,8 @@
       const rows = await api("/api/payroll/summary");
       summaryCache = rows;
       if (!rows.length) {
-        chartArea.innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С… РґР»СЏ РіСЂР°С„РёРєР°</div>';
-        tableWrap.innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С…</div>';
+        chartArea.innerHTML = '<div class="empty">Нет данных для графика</div>';
+        tableWrap.innerHTML = '<div class="empty">Нет данных</div>';
         return;
       }
       renderChart(rows, currentMetric);
@@ -460,14 +460,14 @@
         const r = rows[idx];
         tooltip.innerHTML = `
           <div class="tt-period">${escapeHtml(r.period)}</div>
-          <div class="tt-row"><span>РћРєР»Р°Рґ</span><b>${formatMoney(r.accrued_base)}</b></div>
-          <div class="tt-row"><span>РџСЂРµРјРёСЏ СѓСЃР»СѓРі</span><b>${formatMoney(r.services_bonus)}</b></div>
-          <div class="tt-row"><span>РџСЂРµРјРёСЏ С‚РѕРІР°СЂР°</span><b>${formatMoney(r.goods_bonus)}</b></div>
-          <div class="tt-row"><span>РџСЂРµРјРёСЏ РёС‚РѕРіРѕ</span><b>${formatMoney(r.bonus_total)}</b></div>
+          <div class="tt-row"><span>Оклад</span><b>${formatMoney(r.accrued_base)}</b></div>
+          <div class="tt-row"><span>Премия услуг</span><b>${formatMoney(r.services_bonus)}</b></div>
+          <div class="tt-row"><span>Премия товара</span><b>${formatMoney(r.goods_bonus)}</b></div>
+          <div class="tt-row"><span>Премия итого</span><b>${formatMoney(r.bonus_total)}</b></div>
           <div class="tt-row"><span>Gross</span><b>${formatMoney(r.gross_pay)}</b></div>
-          <div class="tt-row"><span>РќР”Р¤Р›</span><b>-${formatMoney(r.tax_amount)}</b></div>
-          <div class="tt-row tt-net"><span>Рљ РІС‹РїР»Р°С‚Рµ</span><b>${formatMoney(r.net_pay)}</b></div>
-          <div class="tt-date">Р Р°СЃС‡С‘С‚ РѕС‚ ${escapeHtml(r.created_at)}</div>`;
+          <div class="tt-row"><span>НДФЛ</span><b>-${formatMoney(r.tax_amount)}</b></div>
+          <div class="tt-row tt-net"><span>К выплате</span><b>${formatMoney(r.net_pay)}</b></div>
+          <div class="tt-date">Расчёт от ${escapeHtml(r.created_at)}</div>`;
         tooltip.style.display = "block";
         const rect = area.getBoundingClientRect();
         tooltip.style.left = Math.min(e.clientX - rect.left + 10, rect.width - 240) + "px";
@@ -479,21 +479,21 @@
 
   function renderSummaryTable(rows) {
     const wrap = $("#summary-table");
-    if (!rows.length) { wrap.innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С…</div>'; return; }
+    if (!rows.length) { wrap.innerHTML = '<div class="empty">Нет данных</div>'; return; }
     wrap.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>РџРµСЂРёРѕРґ</th><th>РћРєР»Р°Рґ</th><th>РџСЂРµРјРёСЏ СѓСЃР»СѓРі</th><th>РџСЂРµРјРёСЏ С‚РѕРІР°СЂР°</th><th>РџСЂРµРјРёСЏ РёС‚РѕРіРѕ</th><th>Gross</th><th>РќР”Р¤Р›</th><th>Рљ РІС‹РїР»Р°С‚Рµ</th><th>Р”Р°С‚Р°</th><th></th></tr></thead>
+        <thead><tr><th>Период</th><th>Оклад</th><th>Премия услуг</th><th>Премия товара</th><th>Премия итого</th><th>Gross</th><th>НДФЛ</th><th>К выплате</th><th>Дата</th><th></th></tr></thead>
         <tbody>${rows.map(r => `<tr>
-          <td data-label="РџРµСЂРёРѕРґ"><b>${escapeHtml(r.period)}</b></td>
-          <td data-label="РћРєР»Р°Рґ" class="tnum">${formatMoney(r.accrued_base)}</td>
-          <td data-label="РџСЂРµРјРёСЏ СѓСЃР»СѓРі" class="tnum">${formatMoney(r.services_bonus)}</td>
-          <td data-label="РџСЂРµРјРёСЏ С‚РѕРІР°СЂР°" class="tnum">${formatMoney(r.goods_bonus)}</td>
-          <td data-label="РџСЂРµРјРёСЏ РёС‚РѕРіРѕ" class="tnum">${formatMoney(r.bonus_total)}</td>
+          <td data-label="Период"><b>${escapeHtml(r.period)}</b></td>
+          <td data-label="Оклад" class="tnum">${formatMoney(r.accrued_base)}</td>
+          <td data-label="Премия услуг" class="tnum">${formatMoney(r.services_bonus)}</td>
+          <td data-label="Премия товара" class="tnum">${formatMoney(r.goods_bonus)}</td>
+          <td data-label="Премия итого" class="tnum">${formatMoney(r.bonus_total)}</td>
           <td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td>
-          <td data-label="РќР”Р¤Р›" class="tnum">-${formatMoney(r.tax_amount)}</td>
-          <td data-label="Рљ РІС‹РїР»Р°С‚Рµ" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
-          <td data-label="Р”Р°С‚Р° СЂР°СЃС‡С‘С‚Р°" class="text-muted">${escapeHtml(r.created_at)}</td>
-          <td data-label="" class="row-action"><button class="btn-ghost btn-sm" onclick="App.exportRecord(${r.record_id})" title="РЎРєР°С‡Р°С‚СЊ Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></td>
+          <td data-label="НДФЛ" class="tnum">-${formatMoney(r.tax_amount)}</td>
+          <td data-label="К выплате" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
+          <td data-label="Дата расчёта" class="text-muted">${escapeHtml(r.created_at)}</td>
+          <td data-label="" class="row-action"><button class="btn-ghost btn-sm" onclick="App.exportRecord(${r.record_id})" title="Скачать Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></td>
         </tr>`).join("")}</tbody>
       </table>`;
   }
@@ -505,18 +505,18 @@
     if (!card) return;
     try {
       const u = await api("/api/auth/me");
-      const deptName = u.department ? u.department.name : "вЂ”";
+      const deptName = u.department ? u.department.name : "—";
       const positionsOpts = positionsCache.filter(p => p.department_id === u.department.id).map(p => `<option value="${p.id}" ${u.position && u.position.id === p.id ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
       const gradesOpts = gradesCache.map(g => `<option value="${g.id}" ${u.grade && u.grade.id === g.id ? "selected" : ""}>${escapeHtml(g.name)}</option>`).join("");
       card.innerHTML = `
         <div class="profile-grid">
-          <div class="form-group"><label class="form-label">Р¤РРћ</label><input class="form-input" id="prof-name" value="${escapeHtml(u.full_name)}"></div>
-          <div class="form-group"><label class="form-label">РџРѕС‡С‚Р°</label><input class="form-input" value="${escapeHtml(u.email)}" readonly></div>
-          <div class="form-group"><label class="form-label">РћС‚РґРµР»</label><input class="form-input" value="${escapeHtml(deptName)}" readonly></div>
-          <div class="form-group"><label class="form-label">Р”РѕР»Р¶РЅРѕСЃС‚СЊ</label><select class="form-input" id="prof-pos">${positionsOpts}</select></div>
-          <div class="form-group"><label class="form-label">Р“СЂРµР№Рґ</label><select class="form-input" id="prof-grade">${gradesOpts}</select></div>
+          <div class="form-group"><label class="form-label">ФИО</label><input class="form-input" id="prof-name" value="${escapeHtml(u.full_name)}"></div>
+          <div class="form-group"><label class="form-label">Почта</label><input class="form-input" value="${escapeHtml(u.email)}" readonly></div>
+          <div class="form-group"><label class="form-label">Отдел</label><input class="form-input" value="${escapeHtml(deptName)}" readonly></div>
+          <div class="form-group"><label class="form-label">Должность</label><select class="form-input" id="prof-pos">${positionsOpts}</select></div>
+          <div class="form-group"><label class="form-label">Грейд</label><select class="form-input" id="prof-grade">${gradesOpts}</select></div>
         </div>
-        <div class="profile-actions"><button class="btn-accent" onclick="App.saveProfile()">РЎРѕС…СЂР°РЅРёС‚СЊ РёР·РјРµРЅРµРЅРёСЏ</button></div>`;
+        <div class="profile-actions"><button class="btn-accent" onclick="App.saveProfile()">Сохранить изменения</button></div>`;
       if (!positionsCache.length || positionsCache[0].department_id !== u.department.id) {
         try {
           positionsCache = await api(`/api/positions?department_id=${u.department.id}`, { auth: false });
@@ -534,7 +534,7 @@
     try {
       const updated = await api("/api/auth/me", { method: "PUT", body: { full_name, position_id, grade_id } });
       setSession(getToken(), updated);
-      toast("РџСЂРѕС„РёР»СЊ РѕР±РЅРѕРІР»С‘РЅ", "success");
+      toast("Профиль обновлён", "success");
       location.reload();
     } catch (e) { toast(e.message, "error"); }
   }
@@ -568,41 +568,41 @@
     if (g.has_plan && g.plan_margin) {
       planHtml = `
         <div class="formula-section">
-          <div class="formula-section-title">0. РџР»Р°РЅ Рё СЃС‚СѓРїРµРЅСЊ</div>
-          <div class="formula-line"><span class="ftxt">РџР»Р°РЅ</span><span class="fsep">=</span><span class="fval">${formatMoney(g.plan_margin)}</span><span class="fsep">В·</span><span class="ftxt">РњР°СЂР¶Р° РґР»СЏ РїР»Р°РЅР°</span><span class="fsep">=</span><span class="fval">${formatMoney(marginNet)}</span><span class="fsep">(в€’5% РќР”РЎ)</span></div>
-          <div class="formula-line"><span class="ftxt">Р’С‹РїРѕР»РЅРµРЅРёРµ</span><span class="fsep">=</span><span class="fval">${perf}%</span><span class="fsep">в†’</span><span class="fresult">РЎС‚СѓРїРµРЅСЊ: ${bonusPercent}%</span></div>
+          <div class="formula-section-title">0. План и ступень</div>
+          <div class="formula-line"><span class="ftxt">План</span><span class="fsep">=</span><span class="fval">${formatMoney(g.plan_margin)}</span><span class="fsep">·</span><span class="ftxt">Маржа для плана</span><span class="fsep">=</span><span class="fval">${formatMoney(marginNet)}</span><span class="fsep">(−5% НДС)</span></div>
+          <div class="formula-line"><span class="ftxt">Выполнение</span><span class="fsep">=</span><span class="fval">${perf}%</span><span class="fsep">→</span><span class="fresult">Ступень: ${bonusPercent}%</span></div>
         </div>`;
     }
     overlay.innerHTML = `
       <div class="modal modal-formula">
-        <div class="modal-title-row"><div class="modal-title">Р¤РѕСЂРјСѓР»Р° СЂР°СЃС‡С‘С‚Р°</div><button class="modal-close" type="button" onclick="this.closest('.modal-bg').remove()">вњ•</button></div>
+        <div class="modal-title-row"><div class="modal-title">Формула расчёта</div><button class="modal-close" type="button" onclick="this.closest('.modal-bg').remove()">✕</button></div>
         ${planHtml}
         <div class="formula-section">
-          <div class="formula-section-title">1. РќР°С‡РёСЃР»РµРЅРёРµ РїРѕ РѕРєР»Р°РґСѓ</div>
-          <div class="formula-line"><span class="ftxt">РћРєР»Р°Рґ</span><span class="fsep">Г—</span><span class="fval">${worked}</span><span class="fsep">Г·</span><span class="fval">${working}</span><span class="fsep">=</span><span class="fresult">${formatMoney(accrued)}</span></div>
+          <div class="formula-section-title">1. Начисление по окладу</div>
+          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">×</span><span class="fval">${worked}</span><span class="fsep">÷</span><span class="fval">${working}</span><span class="fsep">=</span><span class="fresult">${formatMoney(accrued)}</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">2. РџСЂРµРјРёСЏ Р·Р° СѓСЃР»СѓРіРё <span class="formula-hint">Г— РєРѕСЌС„С„РёС†РёРµРЅС‚ ${Number(g.service_factor).toFixed(2)} В· ${bonusPercent}%</span></div>
-          <div class="formula-line"><span class="ftxt">РњР°СЂР¶Р° СѓСЃР»СѓРі</span><span class="fsep">Г—</span><span class="fval">${Number(g.service_factor).toFixed(2)}</span><span class="fsep">Г—</span><span class="fval">${bonusPercent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(svcBonus)}</span></div>
-          <div class="formula-sub">РњР°СЂР¶Р° СѓСЃР»СѓРі = СЃСѓРјРјР° СЃС‚РѕР»Р±С†РѕРІ: <b>РЈСЃР»СѓРіРё, Р¦РўРћ, Р РµРіСѓР»СЏСЂРЅРѕРµ СЃРѕРїСЂРѕРІРѕР¶РґРµРЅРёРµ вЂ” РРўРЎ, РљРѕРЅСЃР°Р»С‚РёРЅРі, Р”РѕСЃС‚Р°РІРєР°</b></div>
+          <div class="formula-section-title">2. Премия за услуги <span class="formula-hint">× коэффициент ${Number(g.service_factor).toFixed(2)} · ${bonusPercent}%</span></div>
+          <div class="formula-line"><span class="ftxt">Маржа услуг</span><span class="fsep">×</span><span class="fval">${Number(g.service_factor).toFixed(2)}</span><span class="fsep">×</span><span class="fval">${bonusPercent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(svcBonus)}</span></div>
+          <div class="formula-sub">Маржа услуг = сумма столбцов: <b>Услуги, ЦТО, Регулярное сопровождение — ИТС, Консалтинг, Доставка</b></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">3. РџСЂРµРјРёСЏ Р·Р° С‚РѕРІР°СЂ <span class="formula-hint">${bonusPercent}%</span></div>
-          <div class="formula-line"><span class="ftxt">РњР°СЂР¶Р° С‚РѕРІР°СЂР°</span><span class="fsep">Г—</span><span class="fval">${bonusPercent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(goodsBonus)}</span></div>
-          <div class="formula-sub">РњР°СЂР¶Р° С‚РѕРІР°СЂР° = СЃСѓРјРјР° СЃС‚РѕР»Р±С†РѕРІ: <b>РўРѕСЂРіРѕРІРѕРµ РѕР±РѕСЂСѓРґРѕРІР°РЅРёРµ, 1РЎ, РџСЂРѕРјС‹С€Р»РµРЅРЅРѕРµ РѕР±РѕСЂСѓРґРѕРІР°РЅРёРµ</b></div>
+          <div class="formula-section-title">3. Премия за товар <span class="formula-hint">${bonusPercent}%</span></div>
+          <div class="formula-line"><span class="ftxt">Маржа товара</span><span class="fsep">×</span><span class="fval">${bonusPercent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(goodsBonus)}</span></div>
+          <div class="formula-sub">Маржа товара = сумма столбцов: <b>Торговое оборудование, 1С, Промышленное оборудование</b></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">4. РќР°С‡РёСЃР»РµРЅРѕ РІСЃРµРіРѕ</div>
-          <div class="formula-line"><span class="ftxt">РћРєР»Р°Рґ</span><span class="fsep">+</span><span class="ftxt">РџСЂРµРјРёСЏ СѓСЃР»СѓРі</span><span class="fsep">+</span><span class="ftxt">РџСЂРµРјРёСЏ С‚РѕРІР°СЂР°</span><span class="fsep">=</span><span class="fresult">${formatMoney(gross)}</span></div>
+          <div class="formula-section-title">4. Начислено всего</div>
+          <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">+</span><span class="ftxt">Премия услуг</span><span class="fsep">+</span><span class="ftxt">Премия товара</span><span class="fsep">=</span><span class="fresult">${formatMoney(gross)}</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">5. РќР”Р¤Р›</div>
-          <div class="formula-line"><span class="ftxt">${tax}%</span><span class="fsep">РѕС‚</span><span class="fval">${formatMoney(gross)}</span><span class="fsep">=</span><span class="fresult fresult-mute">-${formatMoney(taxAmt)}</span></div>
+          <div class="formula-section-title">5. НДФЛ</div>
+          <div class="formula-line"><span class="ftxt">${tax}%</span><span class="fsep">от</span><span class="fval">${formatMoney(gross)}</span><span class="fsep">=</span><span class="fresult fresult-mute">-${formatMoney(taxAmt)}</span></div>
         </div>
         <div class="formula-section formula-total">
-          <div class="formula-line"><span class="ftotal-label">Рљ РІС‹РїР»Р°С‚Рµ</span><span class="fsep">=</span><span class="ftotal-value">${formatMoney(net)}</span></div>
+          <div class="formula-line"><span class="ftotal-label">К выплате</span><span class="fsep">=</span><span class="ftotal-value">${formatMoney(net)}</span></div>
         </div>
-        <div class="modal-actions"><button class="btn-accent" onclick="this.closest('.modal-bg').remove()">РџРѕРЅСЏС‚РЅРѕ</button></div>
+        <div class="modal-actions"><button class="btn-accent" onclick="this.closest('.modal-bg').remove()">Понятно</button></div>
       </div>`;
     document.body.appendChild(overlay);
   }
@@ -611,7 +611,7 @@
     try {
       const token = getToken();
       const res = await fetch(`/api/payroll/records/${recordId}/export`, { headers: { Authorization: `Bearer ${token}` } });
-      if (!res.ok) { const msg = await res.text(); throw new Error(msg || `РћС€РёР±РєР° ${res.status}`); }
+      if (!res.ok) { const msg = await res.text(); throw new Error(msg || `Ошибка ${res.status}`); }
       const blob = await res.blob();
       const disposition = res.headers.get("Content-Disposition") || "";
       const m = disposition.match(/filename\*=UTF-8''([^;]+)/);
@@ -622,13 +622,13 @@
       a.href = url; a.download = filename;
       document.body.appendChild(a); a.click(); a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
-      toast("Excel РІС‹РіСЂСѓР¶РµРЅ", "success");
+      toast("Excel выгружен", "success");
     } catch (e) { toast(e.message, "error"); }
   }
 
   const fotStatusClass = { normal: "kpi-fot-status-normal", warning: "kpi-fot-status-warning", critical: "kpi-fot-status-critical", none: "kpi-fot-status-none" };
   const fotCellClass = { normal: "cell-fot-status-normal", warning: "cell-fot-status-warning", critical: "cell-fot-status-critical" };
-  const fotLabel = { normal: "РќРѕСЂРјР°", warning: "Р’РЅРёРјР°РЅРёРµ", critical: "РљСЂРёС‚РёС‡РЅРѕ", none: "РќРµС‚ РґР°РЅРЅС‹С…" };
+  const fotLabel = { normal: "Норма", warning: "Внимание", critical: "Критично", none: "Нет данных" };
 
   async function loadDashboard() {
     const period = $("#head-team-period").value || new Date().toISOString().slice(0, 7);
@@ -638,27 +638,27 @@
       const k = data.kpis;
       const fotSt = k.fot_status || "none";
       kpisEl.innerHTML = `
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(k.margin)}</div><div class="kpi-lbl">РјР°СЂР¶Р°</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(k.gross)}</div><div class="kpi-lbl">Р¤РћРў (gross)</div></div>
-        <div class="kpi ${k.profit >= 0 ? "kpi-green" : "kpi-red"}"><div class="kpi-val">${formatMoneyShort(k.profit)}</div><div class="kpi-lbl">РїСЂРёР±С‹Р»СЊ</div></div>
-        <div class="kpi"><div class="kpi-val">${k.profitability_pct == null ? "вЂ”" : k.profitability_pct + "%"}</div><div class="kpi-lbl">СЂРµРЅС‚Р°Р±РµР»СЊРЅРѕСЃС‚СЊ</div></div>
-        <div class="kpi"><div class="kpi-val">${k.fot_margin_pct == null ? "вЂ”" : k.fot_margin_pct + "%"}</div><div class="kpi-lbl">Р¤РћРў / РњР°СЂР¶Р°</div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(k.margin)}</div><div class="kpi-lbl">маржа</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(k.gross)}</div><div class="kpi-lbl">ФОТ (gross)</div></div>
+        <div class="kpi ${k.profit >= 0 ? "kpi-green" : "kpi-red"}"><div class="kpi-val">${formatMoneyShort(k.profit)}</div><div class="kpi-lbl">прибыль</div></div>
+        <div class="kpi"><div class="kpi-val">${k.profitability_pct == null ? "—" : k.profitability_pct + "%"}</div><div class="kpi-lbl">рентабельность</div></div>
+        <div class="kpi"><div class="kpi-val">${k.fot_margin_pct == null ? "—" : k.fot_margin_pct + "%"}</div><div class="kpi-lbl">ФОТ / Маржа</div>
           <div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div>
-          <div class="fot-norm-note">РќРѕСЂРјР° в‰¤20% | РљСЂРёС‚РёС‡РЅРѕ >25%</div></div>
-        <div class="kpi"><div class="kpi-val">${k.managers_with_data}/${k.managers_total}</div><div class="kpi-lbl">СЃ СЂР°СЃС‡С‘С‚РѕРј</div></div>`;
+          <div class="fot-norm-note">Норма ≤20% | Критично >25%</div></div>
+        <div class="kpi"><div class="kpi-val">${k.managers_with_data}/${k.managers_total}</div><div class="kpi-lbl">с расчётом</div></div>`;
 
-      // 4 РіСЂР°С„РёРєР° РїРѕ СЃРѕС‚СЂСѓРґРЅРёРєР°Рј
+      // 4 графика по сотрудникам
       const activeMetrics = data.metrics.filter(m => m.has_record);
       if (!activeMetrics.length) {
-        ["chart-margin","chart-gross","chart-profit","chart-profitability"].forEach(id => $(`#${id}`).innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С…</div>');
+        ["chart-margin","chart-gross","chart-profit","chart-profitability"].forEach(id => $(`#${id}`).innerHTML = '<div class="empty">Нет данных</div>');
       } else {
-        renderBarChartH("#chart-margin", activeMetrics, "margin", "РњР°СЂР¶Р°");
-        renderBarChartH("#chart-gross", activeMetrics, "gross", "Р¤РћРў");
-        renderBarChartH("#chart-profit", activeMetrics, "profit", "РџСЂРёР±С‹Р»СЊ");
-        renderBarChartH("#chart-profitability", activeMetrics, "profitability_pct", "Р РµРЅС‚Р°Р±.%");
+        renderBarChartH("#chart-margin", activeMetrics, "margin", "Маржа");
+        renderBarChartH("#chart-gross", activeMetrics, "gross", "ФОТ");
+        renderBarChartH("#chart-profit", activeMetrics, "profit", "Прибыль");
+        renderBarChartH("#chart-profitability", activeMetrics, "profitability_pct", "Рентаб.%");
       }
 
-      // 4 Р±Р»РѕРєР° С‚Р°Р±Р»РёС†
+      // 4 блока таблиц
       renderBlockMargin(data.members);
       renderBlockPayroll(data.members);
       renderBlockCosts(data.metrics);
@@ -672,7 +672,7 @@
     const area = $(selector);
     if (!area) return;
     const values = rows.map(r => Number(r[valueKey]) || 0);
-    if (!values.length || values.every(v => v === 0)) { area.innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С…</div>'; return; }
+    if (!values.length || values.every(v => v === 0)) { area.innerHTML = '<div class="empty">Нет данных</div>'; return; }
     const maxV = Math.max(1, ...values.map(Math.abs));
     const minV = Math.min(0, ...values);
     const W = Math.max(320, Math.min(460, rows.length * 60 + 50));
@@ -693,7 +693,7 @@
       const y = v >= 0 ? yScale(v) : zeroY;
       const bh = Math.max(1, Math.abs(zeroY - yScale(v)));
       const color = (valueKey === "profit" || valueKey === "profitability_pct") ? (v >= 0 ? "var(--color-success)" : "var(--color-error)") : "#e5006e";
-      const valTxt = valueKey === "profitability_pct" ? (v == null ? "вЂ”" : v + "%") : shortMoney(v);
+      const valTxt = valueKey === "profitability_pct" ? (v == null ? "—" : v + "%") : shortMoney(v);
       bars += `<g class="bar-group" data-idx="${i}">
         <rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="${color}" class="bar-rect"/>
         <text x="${x + barW / 2}" y="${(v >= 0 ? y : yScale(v)) - 6}" text-anchor="middle" font-size="10" fill="var(--color-text)" font-family="JetBrains Mono" font-weight="600">${valTxt}</text>
@@ -707,7 +707,7 @@
         const idx = parseInt(g.dataset.idx);
         const r = rows[idx];
         tooltip.innerHTML = `<div class="tt-period">${escapeHtml(r.full_name)}</div>
-          <div class="tt-row"><span>${label}</span><b>${valueKey === "profitability_pct" ? (r[valueKey] == null ? "вЂ”" : r[valueKey] + "%") : formatMoney(r[valueKey])}</b></div>`;
+          <div class="tt-row"><span>${label}</span><b>${valueKey === "profitability_pct" ? (r[valueKey] == null ? "—" : r[valueKey] + "%") : formatMoney(r[valueKey])}</b></div>`;
         tooltip.style.display = "block";
         const rect = area.getBoundingClientRect();
         tooltip.style.left = Math.min(e.clientX - rect.left + 10, rect.width - 220) + "px";
@@ -718,7 +718,7 @@
   }
 
   function shortName(full) {
-    if (!full) return "вЂ”";
+    if (!full) return "—";
     const parts = full.trim().split(/\s+/);
     if (parts.length === 1) return parts[0];
     return parts[0] + " " + (parts[1] || "").slice(0, 1) + ".";
@@ -729,12 +729,12 @@
     if (!el) return;
     el.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>РњР°СЂР¶Р° СѓСЃР»СѓРі</th><th>РњР°СЂР¶Р° С‚РѕРІР°СЂР°</th><th>РџСЂРµРјРёСЏ</th></tr></thead>
+        <thead><tr><th>Менеджер</th><th>Маржа услуг</th><th>Маржа товара</th><th>Премия</th></tr></thead>
         <tbody>${members.map(m => `<tr>
-          <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(m.full_name)}</b></td>
+          <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
           ${m.record
-            ? `<td data-label="РњР°СЂР¶Р° СѓСЃР»СѓРі" class="tnum">${formatMoney(m.record.service_margin)}</td><td data-label="РњР°СЂР¶Р° С‚РѕРІР°СЂР°" class="tnum">${formatMoney(m.record.goods_margin)}</td><td data-label="РџСЂРµРјРёСЏ" class="tnum">${formatMoney(m.record.bonus_total)}</td>`
-            : `<td colspan="3" class="text-muted" style="text-align:center">РќРµС‚ СЂР°СЃС‡С‘С‚Р°</td>`}
+            ? `<td data-label="Маржа услуг" class="tnum">${formatMoney(m.record.service_margin)}</td><td data-label="Маржа товара" class="tnum">${formatMoney(m.record.goods_margin)}</td><td data-label="Премия" class="tnum">${formatMoney(m.record.bonus_total)}</td>`
+            : `<td colspan="3" class="text-muted" style="text-align:center">Нет расчёта</td>`}
         </tr>`).join("")}</tbody>
       </table>`;
   }
@@ -744,12 +744,12 @@
     if (!el) return;
     el.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>Gross</th><th>РќР”Р¤Р›</th><th>Рљ РІС‹РїР»Р°С‚Рµ</th></tr></thead>
+        <thead><tr><th>Менеджер</th><th>Gross</th><th>НДФЛ</th><th>К выплате</th></tr></thead>
         <tbody>${members.map(m => `<tr>
-          <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(m.full_name)}</b></td>
+          <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
           ${m.record
-            ? `<td data-label="Gross" class="tnum">${formatMoney(m.record.gross_pay)}</td><td data-label="РќР”Р¤Р›" class="tnum">-${formatMoney(m.record.tax_amount)}</td><td data-label="Рљ РІС‹РїР»Р°С‚Рµ" class="tnum net-cell">${formatMoney(m.record.net_pay)}</td>`
-            : `<td colspan="3" class="text-muted" style="text-align:center">РќРµС‚ СЂР°СЃС‡С‘С‚Р°</td>`}
+            ? `<td data-label="Gross" class="tnum">${formatMoney(m.record.gross_pay)}</td><td data-label="НДФЛ" class="tnum">-${formatMoney(m.record.tax_amount)}</td><td data-label="К выплате" class="tnum net-cell">${formatMoney(m.record.net_pay)}</td>`
+            : `<td colspan="3" class="text-muted" style="text-align:center">Нет расчёта</td>`}
         </tr>`).join("")}</tbody>
       </table>`;
   }
@@ -759,12 +759,12 @@
     if (!el) return;
     el.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>Р¤РћРў</th><th>Р’Р·РЅРѕСЃС‹</th><th>РќР”РЎ</th><th>РћС„РёСЃ</th></tr></thead>
+        <thead><tr><th>Менеджер</th><th>ФОТ</th><th>Взносы</th><th>НДС</th><th>Офис</th></tr></thead>
         <tbody>${metrics.map(m => `<tr>
-          <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(m.full_name)}</b></td>
+          <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
           ${m.has_record
-            ? `<td data-label="Р¤РћРў" class="tnum">${formatMoney(m.gross)}</td><td data-label="Р’Р·РЅРѕСЃС‹ 30%" class="tnum">${formatMoney(m.insurance)}</td><td data-label="РќР”РЎ 5%" class="tnum">${formatMoney(m.vat)}</td><td data-label="РћС„РёСЃ" class="tnum">${formatMoney(m.office)}</td>`
-            : `<td colspan="4" class="text-muted" style="text-align:center">РќРµС‚ СЂР°СЃС‡С‘С‚Р°</td>`}
+            ? `<td data-label="ФОТ" class="tnum">${formatMoney(m.gross)}</td><td data-label="Взносы 7.6%" class="tnum">${formatMoney(m.insurance)}</td><td data-label="НДС 5%" class="tnum">${formatMoney(m.vat)}</td><td data-label="Офис" class="tnum">${formatMoney(m.office)}</td>`
+            : `<td colspan="4" class="text-muted" style="text-align:center">Нет расчёта</td>`}
         </tr>`).join("")}</tbody>
       </table>`;
   }
@@ -774,14 +774,14 @@
     if (!el) return;
     el.innerHTML = `
       <table class="data-table">
-        <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>РњР°СЂР¶Р°</th><th>РџСЂРёР±С‹Р»СЊ</th><th>Р РµРЅС‚Р°Р±.</th><th>Р¤РћРў/РњР°СЂР¶Р°</th></tr></thead>
+        <thead><tr><th>Менеджер</th><th>Маржа</th><th>Прибыль</th><th>Рентаб.</th><th>ФОТ/Маржа</th></tr></thead>
         <tbody>${metrics.map(m => {
           const fotSt = m.fot_status || "none";
           return `<tr>
-            <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(m.full_name)}</b></td>
+            <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
             ${m.has_record
-              ? `<td data-label="РњР°СЂР¶Р°" class="tnum">${formatMoney(m.margin)}</td><td data-label="РџСЂРёР±С‹Р»СЊ" class="tnum ${m.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(m.profit)}</td><td data-label="Р РµРЅС‚Р°Р±." class="tnum"><b>${m.profitability_pct == null ? "вЂ”" : m.profitability_pct + "%"}</b></td><td data-label="Р¤РћРў/РњР°СЂР¶Р°" class="tnum ${fotCellClass[fotSt] || ""}">${m.fot_margin_pct == null ? "вЂ”" : m.fot_margin_pct + "%"}</td>`
-              : `<td colspan="4" class="text-muted" style="text-align:center">РќРµС‚ СЂР°СЃС‡С‘С‚Р°</td>`}
+              ? `<td data-label="Маржа" class="tnum">${formatMoney(m.margin)}</td><td data-label="Прибыль" class="tnum ${m.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(m.profit)}</td><td data-label="Рентаб." class="tnum"><b>${m.profitability_pct == null ? "—" : m.profitability_pct + "%"}</b></td><td data-label="ФОТ/Маржа" class="tnum ${fotCellClass[fotSt] || ""}">${m.fot_margin_pct == null ? "—" : m.fot_margin_pct + "%"}</td>`
+              : `<td colspan="4" class="text-muted" style="text-align:center">Нет расчёта</td>`}
           </tr>`;
         }).join("")}</tbody>
       </table>`;
@@ -803,16 +803,16 @@
 
   function renderHistoryCharts(data) {
     const rows = data.monthly;
-    renderTrendChart("#hst-margin", rows, "margin", "РњР°СЂР¶Р°");
-    renderTrendChart("#hst-gross", rows, "gross", "Р¤РћРў");
-    renderTrendChart("#hst-profit", rows, "profit", "РџСЂРёР±С‹Р»СЊ");
-    renderTrendChart("#hst-rent", rows, "profitability_pct", "Р РµРЅС‚Р°Р±.%");
+    renderTrendChart("#hst-margin", rows, "margin", "Маржа");
+    renderTrendChart("#hst-gross", rows, "gross", "ФОТ");
+    renderTrendChart("#hst-profit", rows, "profit", "Прибыль");
+    renderTrendChart("#hst-rent", rows, "profitability_pct", "Рентаб.%");
   }
 
   function renderTrendChart(selector, rows, key, label) {
     const area = $(selector);
     if (!area) return;
-    if (!rows.length) { area.innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С…</div>'; return; }
+    if (!rows.length) { area.innerHTML = '<div class="empty">Нет данных</div>'; return; }
     const values = rows.map(r => Number(r[key]) || 0);
     const maxV = Math.max(1, ...values);
     const W = Math.max(320, Math.min(460, rows.length * 60 + 50));
@@ -829,7 +829,7 @@
       const x = padL + i * scaleX + (scaleX - barW) / 2;
       const y = yScale(v);
       const bh = padT + innerH - y;
-      const valTxt = key === "profitability_pct" ? (v == null ? "вЂ”" : v + "%") : shortMoney(v);
+      const valTxt = key === "profitability_pct" ? (v == null ? "—" : v + "%") : shortMoney(v);
       const color = (key === "profit" || key === "profitability_pct") ? (v >= 0 ? "var(--color-success)" : "var(--color-error)") : "#e5006e";
       bars += `<g class="bar-group" data-idx="${i}">
         <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(1, bh)}" rx="3" fill="${color}" class="bar-rect"/>
@@ -845,21 +845,21 @@
     if (!wrap) return;
     const managers = data.managers;
     const byManager = data.by_manager;
-    if (!managers.length || !byManager.length) { wrap.innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С…</div>'; return; }
-    // РЎРµС‚РєР°: СЃС‚СЂРѕРєРё = РјРµРЅРµРґР¶РµСЂС‹ (РїРѕ data РїРѕ РїРµСЂРёРѕРґР°Рј), СЃС‚РѕР»Р±С†С‹ = РјРµСЃСЏС†С‹
+    if (!managers.length || !byManager.length) { wrap.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    // Сетка: строки = менеджеры (по data по периодам), столбцы = месяцы
     const periods = data.monthly.map(m => m.period);
     const cellW = 60, cellH = 32, padL = 120, padT = 28;
     const W = padL + periods.length * cellW + 10;
     const H = padT + managers.length * cellH + 10;
-    // РџРѕРёСЃРє РјР°РєСЃРёРјСѓРјР° РјР°СЂР¶Рё РґР»СЏ С†РІРµС‚Р°
+    // Поиск максимума маржи для цвета
     let maxV = 1;
     byManager.forEach(bm => bm.data.forEach(d => { if (d.margin > maxV) maxV = d.margin; }));
     let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="heat-svg">`;
-    // Р—Р°РіРѕР»РѕРІРєРё СЃС‚РѕР»Р±С†РѕРІ (РјРµСЃСЏС†С‹)
+    // Заголовки столбцов (месяцы)
     periods.forEach((p, i) => {
       svg += `<text x="${padL + i * cellW + cellW / 2}" y="${padT - 8}" text-anchor="middle" font-size="10" fill="var(--color-text-muted)" font-weight="600">${escapeHtml(p.slice(5))}</text>`;
     });
-    // РџРѕРґРїРёСЃРё СЃС‚СЂРѕРє + СЏС‡РµР№РєРё
+    // Подписи строк + ячейки
     byManager.forEach((bm, r) => {
       const y = padT + r * cellH;
       svg += `<text x="${padL - 8}" y="${y + cellH / 2 + 3}" text-anchor="end" font-size="10" fill="var(--color-text)" font-weight="600">${escapeHtml(bm.full_name)}</text>`;
@@ -867,8 +867,8 @@
         const x = padL + c * cellW;
         const intensity = d.margin / maxV;
         const fill = heatColor(intensity);
-        svg += `<rect class="heat-cell" x="${x + 2}" y="${y + 2}" width="${cellW - 4}" height="${cellH - 4}" rx="3" fill="${fill}" data-period="${escapeHtml(d.period)}" data-name="${escapeHtml(bm.full_name)}" data-margin="${d.margin}" data-profit="${d.profit || 0}" data-rent="${d.profitability_pct == null ? 'вЂ”' : d.profitability_pct}"/>`;
-        svg += `<text x="${x + cellW / 2}" y="${y + cellH / 2 + 2}" text-anchor="middle" font-size="9" fill="${intensity > 0.55 ? 'white' : 'var(--color-text)'}" font-family="JetBrains Mono" font-weight="600">${d.margin > 0 ? shortMoney(d.margin) : "вЂ”"}</text>`;
+        svg += `<rect class="heat-cell" x="${x + 2}" y="${y + 2}" width="${cellW - 4}" height="${cellH - 4}" rx="3" fill="${fill}" data-period="${escapeHtml(d.period)}" data-name="${escapeHtml(bm.full_name)}" data-margin="${d.margin}" data-profit="${d.profit || 0}" data-rent="${d.profitability_pct == null ? '—' : d.profitability_pct}"/>`;
+        svg += `<text x="${x + cellW / 2}" y="${y + cellH / 2 + 2}" text-anchor="middle" font-size="9" fill="${intensity > 0.55 ? 'white' : 'var(--color-text)'}" font-family="JetBrains Mono" font-weight="600">${d.margin > 0 ? shortMoney(d.margin) : "—"}</text>`;
       });
     });
     svg += "</svg>";
@@ -876,10 +876,10 @@
     const tooltip = $("#hm-tooltip");
     wrap.querySelectorAll(".heat-cell").forEach(cell => {
       cell.addEventListener("mousemove", (e) => {
-        tooltip.innerHTML = `<div class="tt-period">${escapeHtml(cell.dataset.name)} вЂ” ${escapeHtml(cell.dataset.period)}</div>
-          <div class="tt-row"><span>РњР°СЂР¶Р°</span><b>${formatMoney(parseFloat(cell.dataset.margin))}</b></div>
-          <div class="tt-row"><span>РџСЂРёР±С‹Р»СЊ</span><b>${formatMoney(parseFloat(cell.dataset.profit))}</b></div>
-          <div class="tt-row"><span>Р РµРЅС‚Р°Р±.</span><b>${cell.dataset.rent}${cell.dataset.rent !== "вЂ”" ? "%" : ""}</b></div>`;
+        tooltip.innerHTML = `<div class="tt-period">${escapeHtml(cell.dataset.name)} — ${escapeHtml(cell.dataset.period)}</div>
+          <div class="tt-row"><span>Маржа</span><b>${formatMoney(parseFloat(cell.dataset.margin))}</b></div>
+          <div class="tt-row"><span>Прибыль</span><b>${formatMoney(parseFloat(cell.dataset.profit))}</b></div>
+          <div class="tt-row"><span>Рентаб.</span><b>${cell.dataset.rent}${cell.dataset.rent !== "—" ? "%" : ""}</b></div>`;
         tooltip.style.display = "block";
         const rect = wrap.getBoundingClientRect();
         tooltip.style.left = Math.min(e.clientX - rect.left + 10, rect.width - 200) + "px";
@@ -890,7 +890,7 @@
   }
 
   function heatColor(t) {
-    // РёРЅС‚РµСЂРїРѕР»СЏС†РёСЏ РѕС‚ #ededf0 (surface-offset) Рє #e5006e (primary)
+    // интерполяция от #ededf0 (surface-offset) к #e5006e (primary)
     t = Math.max(0, Math.min(1, t));
     const r = Math.round(237 + (229 - 237) * t);
     const g = Math.round(237 + (0 - 237) * t);
@@ -912,8 +912,8 @@
     const items = data.items.filter(it => it.has_current || it.has_previous);
     const prev = data.previous_total;
     const cur = data.current_total;
-    if (!items.length && prev === 0 && cur === 0) { area.innerHTML = '<div class="empty">РќРµС‚ РґР°РЅРЅС‹С…</div>'; return; }
-    // РЈС‡РёС‚С‹РІР°РµРј СЃС‚Р°СЂС‚РѕРІС‹Р№ Р±Р°СЂ (previous), РґРµР»СЊС‚С‹ РјРµРЅРµРґР¶РµСЂРѕРІ, РёС‚РѕРіРѕРІС‹Р№ Р±Р°СЂ (current)
+    if (!items.length && prev === 0 && cur === 0) { area.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    // Учитываем стартовый бар (previous), дельты менеджеров, итоговый бар (current)
     const all = [{ label: data.previous_period, val: prev, type: "start" }];
     let running = prev;
     items.forEach(it => {
@@ -963,11 +963,11 @@
     });
     area.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart-svg">${connectors}${bars}</svg>
       <div style="margin-top:var(--space-3); display:flex; gap:var(--space-4); justify-content:center; font-size:var(--text-xs); color:var(--color-text-muted)">
-        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-text-faint);vertical-align:middle;margin-right:4px;border-radius:2px"></span>${escapeHtml(data.previous_period)} (СЃС‚Р°СЂС‚)</span>
-        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-success);vertical-align:middle;margin-right:4px;border-radius:2px"></span>СЂРѕСЃС‚</span>
-        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-error);vertical-align:middle;margin-right:4px;border-radius:2px"></span>РїР°РґРµРЅРёРµ</span>
-        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-primary);vertical-align:middle;margin-right:4px;border-radius:2px"></span>${escapeHtml(data.period)} (РёС‚РѕРі)</span>
-        <span><b>О” РёС‚РѕРіРѕ: ${data.total_delta >= 0 ? "+" : ""}${formatMoney(data.total_delta)}</b></span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-text-faint);vertical-align:middle;margin-right:4px;border-radius:2px"></span>${escapeHtml(data.previous_period)} (старт)</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-success);vertical-align:middle;margin-right:4px;border-radius:2px"></span>рост</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-error);vertical-align:middle;margin-right:4px;border-radius:2px"></span>падение</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-primary);vertical-align:middle;margin-right:4px;border-radius:2px"></span>${escapeHtml(data.period)} (итог)</span>
+        <span><b>Δ итого: ${data.total_delta >= 0 ? "+" : ""}${formatMoney(data.total_delta)}</b></span>
       </div>`;
   }
 
@@ -977,17 +977,17 @@
     try {
       const data = await api(`/api/head/dashboard?period=${encodeURIComponent(period)}`);
       const activeMembers = data.members.filter(m => m.record);
-      if (!data.members.length) { wrap.innerHTML = '<div class="empty">Р’ РѕС‚РґРµР»Рµ РЅРµС‚ РјРµРЅРµРґР¶РµСЂРѕРІ</div>'; return; }
-      if (!activeMembers.length) { wrap.innerHTML = `<div class="empty">РЈ РјРµРЅРµРґР¶РµСЂРѕРІ РЅРµС‚ СЂР°СЃС‡С‘С‚РѕРІ Р·Р° ${escapeHtml(period)}</div>`; return; }
+      if (!data.members.length) { wrap.innerHTML = '<div class="empty">В отделе нет менеджеров</div>'; return; }
+      if (!activeMembers.length) { wrap.innerHTML = `<div class="empty">У менеджеров нет расчётов за ${escapeHtml(period)}</div>`; return; }
       wrap.innerHTML = `
         <table class="data-table">
-          <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>Р“СЂРµР№Рґ / РћРєР»Р°Рґ</th><th>РњР°СЂР¶Р° Р·Р° РїРµСЂРёРѕРґ</th><th>РЎРµР±РµСЃС‚РѕРёРјРѕСЃС‚СЊ РїСЂРѕРґР°Р¶, в‚Ѕ</th></tr></thead>
+          <thead><tr><th>Менеджер</th><th>Грейд / Оклад</th><th>Маржа за период</th><th>Себестоимость продаж, ₽</th></tr></thead>
           <tbody>${activeMembers.map(m => `
             <tr>
-              <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(m.full_name)}</b></td>
-              <td data-label="Р“СЂРµР№Рґ" class="text-muted">${escapeHtml(m.grade_name || "вЂ”")} / ${m.base_salary != null ? formatMoney(m.base_salary) : "вЂ”"}</td>
-              <td data-label="РњР°СЂР¶Р°" class="tnum">${formatMoney((m.record.service_margin || 0) + (m.record.goods_margin || 0))}</td>
-              <td data-label="РЎРµР±РµСЃС‚РѕРёРјРѕСЃС‚СЊ"><input type="number" class="form-input number-input profit-input" data-uid="${m.user_id}" min="0" step="0.01" value="0" style="text-align:right"></td>
+              <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
+              <td data-label="Грейд" class="text-muted">${escapeHtml(m.grade_name || "—")} / ${m.base_salary != null ? formatMoney(m.base_salary) : "—"}</td>
+              <td data-label="Маржа" class="tnum">${formatMoney((m.record.service_margin || 0) + (m.record.goods_margin || 0))}</td>
+              <td data-label="Себестоимость"><input type="number" class="form-input number-input profit-input" data-uid="${m.user_id}" min="0" step="0.01" value="0" style="text-align:right"></td>
             </tr>`).join("")}</tbody>
         </table>`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
@@ -999,57 +999,57 @@
     $$(".profit-input").forEach(inp => {
       items.push({ user_id: parseInt(inp.dataset.uid), cost_price: parseFloat(inp.value) || 0 });
     });
-    if (!items.length) { toast("РЎРЅР°С‡Р°Р»Р° Р·Р°РіСЂСѓР·РёС‚Рµ РјРµРЅРµРґР¶РµСЂРѕРІ", "error"); return; }
+    if (!items.length) { toast("Сначала загрузите менеджеров", "error"); return; }
     const resBox = $("#profit-result");
     try {
       const r = await api("/api/head/profitability", { method: "POST", body: { period, items } });
       const t = r.totals;
       const fotSt = t.fot_status || "none";
       resBox.innerHTML = `
-        <div class="card-header"><div class="card-title">Р РµРЅС‚Р°Р±РµР»СЊРЅРѕСЃС‚СЊ вЂ” ${escapeHtml(r.period)}</div></div>
+        <div class="card-header"><div class="card-title">Рентабельность — ${escapeHtml(r.period)}</div></div>
         <div class="kpis-row">
-          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.margin)}</div><div class="kpi-lbl">РјР°СЂР¶Р°</div></div>
-          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.labor_cost)}</div><div class="kpi-lbl">Р·Рї-СЂР°СЃС…РѕРґС‹</div></div>
-          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.operating_cost)}</div><div class="kpi-lbl">РѕРїРµСЂР°С†.</div></div>
-          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.cost_price)}</div><div class="kpi-lbl">СЃРµР±РµСЃС‚РѕРёРјРѕСЃС‚СЊ</div></div>
-          <div class="kpi ${t.profit >= 0 ? "kpi-green" : "kpi-red"}"><div class="kpi-val">${formatMoneyShort(t.profit)}</div><div class="kpi-lbl">РїСЂРёР±С‹Р»СЊ</div></div>
-          <div class="kpi"><div class="kpi-val">${t.profitability_pct == null ? "вЂ”" : t.profitability_pct + "%"}</div><div class="kpi-lbl">СЂРµРЅС‚Р°Р±.</div></div>
-          <div class="kpi"><div class="kpi-val">${t.fot_margin_pct == null ? "вЂ”" : t.fot_margin_pct + "%"}</div><div class="kpi-lbl">Р¤РћРў/РњР°СЂР¶Р°</div><div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div></div>
+          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.margin)}</div><div class="kpi-lbl">маржа</div></div>
+          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.labor_cost)}</div><div class="kpi-lbl">зп-расходы</div></div>
+          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.operating_cost)}</div><div class="kpi-lbl">операц.</div></div>
+          <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.cost_price)}</div><div class="kpi-lbl">себестоимость</div></div>
+          <div class="kpi ${t.profit >= 0 ? "kpi-green" : "kpi-red"}"><div class="kpi-val">${formatMoneyShort(t.profit)}</div><div class="kpi-lbl">прибыль</div></div>
+          <div class="kpi"><div class="kpi-val">${t.profitability_pct == null ? "—" : t.profitability_pct + "%"}</div><div class="kpi-lbl">рентаб.</div></div>
+          <div class="kpi"><div class="kpi-val">${t.fot_margin_pct == null ? "—" : t.fot_margin_pct + "%"}</div><div class="kpi-lbl">ФОТ/Маржа</div><div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div></div>
         </div>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>РЎРµР±РµСЃС‚РѕРёРјРѕСЃС‚СЊ</th><th>РњР°СЂР¶Р°</th><th>Р¤РћРў</th><th>РќР”Р¤Р›</th><th>Р’Р·РЅРѕСЃС‹</th><th>РќР”РЎ</th><th>РћС„РёСЃ</th><th>Р Р°СЃС…РѕРґС‹</th><th>РџСЂРёР±С‹Р»СЊ</th><th>Р РµРЅС‚Р°Р±.</th><th>Р¤РћРў/Рњ</th></tr></thead>
+            <thead><tr><th>Менеджер</th><th>Себестоимость</th><th>Маржа</th><th>ФОТ</th><th>НДФЛ</th><th>Взносы</th><th>НДС</th><th>Офис</th><th>Расходы</th><th>Прибыль</th><th>Рентаб.</th><th>ФОТ/М</th></tr></thead>
             <tbody>${r.rows.map(row => {
               const st = row.fot_status || "none";
               return `<tr>
-                <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(row.full_name)}</b></td>
-                <td data-label="РЎРµР±РµСЃС‚РѕРёРјРѕСЃС‚СЊ" class="tnum">${formatMoney(row.cost_price)}</td>
-                <td data-label="РњР°СЂР¶Р°" class="tnum">${formatMoney(row.margin)}</td>
-                <td data-label="Р¤РћРў" class="tnum">${formatMoney(row.gross)}</td>
-                <td data-label="РќР”Р¤Р›" class="tnum">${formatMoney(row.ndfl)}</td>
-                <td data-label="Р’Р·РЅРѕСЃС‹" class="tnum">${formatMoney(row.insurance)}</td>
-                <td data-label="РќР”РЎ" class="tnum">${formatMoney(row.vat)}</td>
-                <td data-label="РћС„РёСЃ" class="tnum">${formatMoney(row.office)}</td>
-                <td data-label="Р Р°СЃС…РѕРґС‹" class="tnum">${formatMoney(row.total_cost)}</td>
-                <td data-label="РџСЂРёР±С‹Р»СЊ" class="tnum ${row.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(row.profit)}</td>
-                <td data-label="Р РµРЅС‚Р°Р±." class="tnum"><b>${row.profitability_pct == null ? "вЂ”" : row.profitability_pct + "%"}</b></td>
-                <td data-label="Р¤РћРў/РњР°СЂР¶Р°" class="tnum ${fotCellClass[st] || ""}">${row.fot_margin_pct == null ? "вЂ”" : row.fot_margin_pct + "%"}</td>
+                <td data-label="Менеджер"><b>${escapeHtml(row.full_name)}</b></td>
+                <td data-label="Себестоимость" class="tnum">${formatMoney(row.cost_price)}</td>
+                <td data-label="Маржа" class="tnum">${formatMoney(row.margin)}</td>
+                <td data-label="ФОТ" class="tnum">${formatMoney(row.gross)}</td>
+                <td data-label="НДФЛ" class="tnum">${formatMoney(row.ndfl)}</td>
+                <td data-label="Взносы" class="tnum">${formatMoney(row.insurance)}</td>
+                <td data-label="НДС" class="tnum">${formatMoney(row.vat)}</td>
+                <td data-label="Офис" class="tnum">${formatMoney(row.office)}</td>
+                <td data-label="Расходы" class="tnum">${formatMoney(row.total_cost)}</td>
+                <td data-label="Прибыль" class="tnum ${row.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(row.profit)}</td>
+                <td data-label="Рентаб." class="tnum"><b>${row.profitability_pct == null ? "—" : row.profitability_pct + "%"}</b></td>
+                <td data-label="ФОТ/Маржа" class="tnum ${fotCellClass[st] || ""}">${row.fot_margin_pct == null ? "—" : row.fot_margin_pct + "%"}</td>
               </tr>`;
             }).join("")}</tbody>
             <tfoot><tr style="font-weight:700;background:var(--color-surface-2)">
-              <td>РС‚РѕРі</td>
+              <td>Итог</td>
               <td class="tnum">${formatMoney(t.cost_price)}</td><td class="tnum">${formatMoney(t.margin)}</td>
               <td class="tnum">${formatMoney(t.gross)}</td><td class="tnum">${formatMoney(t.ndfl)}</td>
               <td class="tnum">${formatMoney(t.insurance)}</td><td class="tnum">${formatMoney(t.vat)}</td>
               <td class="tnum">${formatMoney(t.office)}</td><td class="tnum">${formatMoney(t.total_cost)}</td>
               <td class="tnum ${t.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(t.profit)}</td>
-              <td class="tnum"><b>${t.profitability_pct == null ? "вЂ”" : t.profitability_pct + "%"}</b></td>
-              <td class="tnum ${fotCellClass[fotSt] || ""}">${t.fot_margin_pct == null ? "вЂ”" : t.fot_margin_pct + "%"}</td>
+              <td class="tnum"><b>${t.profitability_pct == null ? "—" : t.profitability_pct + "%"}</b></td>
+              <td class="tnum ${fotCellClass[fotSt] || ""}">${t.fot_margin_pct == null ? "—" : t.fot_margin_pct + "%"}</td>
             </tr></tfoot>
           </table>
         </div>`;
       resBox.style.display = "block";
-      toast("Р РµРЅС‚Р°Р±РµР»СЊРЅРѕСЃС‚СЊ СЂР°СЃСЃС‡РёС‚Р°РЅР°", "success");
+      toast("Рентабельность рассчитана", "success");
     } catch (e) { toast(e.message, "error"); }
   }
 
@@ -1063,42 +1063,42 @@
       const t = r.totals;
       const fotSt = t.fot_status || "none";
       totalsEl.innerHTML = `
-        <div class="kpi"><div class="kpi-val">${t.managers}</div><div class="kpi-lbl">РјРµРЅРµРґР¶РµСЂРѕРІ</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.gross)}</div><div class="kpi-lbl">Р¤РћРў gross</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.ndfl)}</div><div class="kpi-lbl">РќР”Р¤Р›</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.insurance)}</div><div class="kpi-lbl">РІР·РЅРѕСЃС‹ 30%</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.vat)}</div><div class="kpi-lbl">РќР”РЎ 5%</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.office)}</div><div class="kpi-lbl">РѕС„РёСЃ</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.labor_cost)}</div><div class="kpi-lbl">Р·Рї-СЂР°СЃС…РѕРґС‹</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.operating_cost)}</div><div class="kpi-lbl">РѕРїРµСЂР°С†.</div></div>
-        <div class="kpi"><div class="kpi-val">${t.fot_margin_pct == null ? "вЂ”" : t.fot_margin_pct + "%"}</div><div class="kpi-lbl">Р¤РћРў/РњР°СЂР¶Р°</div><div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div></div>`;
+        <div class="kpi"><div class="kpi-val">${t.managers}</div><div class="kpi-lbl">менеджеров</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.gross)}</div><div class="kpi-lbl">ФОТ gross</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.ndfl)}</div><div class="kpi-lbl">НДФЛ</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.insurance)}</div><div class="kpi-lbl">взносы 7.6%</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.vat)}</div><div class="kpi-lbl">НДС 5%</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.office)}</div><div class="kpi-lbl">офис</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.labor_cost)}</div><div class="kpi-lbl">зп-расходы</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.operating_cost)}</div><div class="kpi-lbl">операц.</div></div>
+        <div class="kpi"><div class="kpi-val">${t.fot_margin_pct == null ? "—" : t.fot_margin_pct + "%"}</div><div class="kpi-lbl">ФОТ/Маржа</div><div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div></div>`;
       if (!r.items.length) {
-        laborEl.innerHTML = '<div class="empty">Р’ РѕС‚РґРµР»Рµ РЅРµС‚ РјРµРЅРµРґР¶РµСЂРѕРІ</div>';
-        operatingEl.innerHTML = '<div class="empty">Р’ РѕС‚РґРµР»Рµ РЅРµС‚ РјРµРЅРµРґР¶РµСЂРѕРІ</div>';
+        laborEl.innerHTML = '<div class="empty">В отделе нет менеджеров</div>';
+        operatingEl.innerHTML = '<div class="empty">В отделе нет менеджеров</div>';
         return;
       }
       laborEl.innerHTML = `
         <table class="data-table">
-          <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>Р¤РћРў (gross)</th><th>РќР”Р¤Р›</th><th>Р’Р·РЅРѕСЃС‹ 30%</th></tr></thead>
+          <thead><tr><th>Менеджер</th><th>ФОТ (gross)</th><th>НДФЛ</th><th>Взносы 7.6%</th></tr></thead>
           <tbody>${r.items.map(it => `<tr>
-            <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(it.full_name)}</b></td>
+            <td data-label="Менеджер"><b>${escapeHtml(it.full_name)}</b></td>
             ${it.has_record
-              ? `<td data-label="Р¤РћРў" class="tnum">${formatMoney(it.gross)}</td><td data-label="РќР”Р¤Р›" class="tnum">${formatMoney(it.ndfl)}</td><td data-label="Р’Р·РЅРѕСЃС‹" class="tnum">${formatMoney(it.insurance)}</td>`
-              : `<td colspan="3" class="text-muted" style="text-align:center">РќРµС‚ СЂР°СЃС‡С‘С‚Р°</td>`}
+              ? `<td data-label="ФОТ" class="tnum">${formatMoney(it.gross)}</td><td data-label="НДФЛ" class="tnum">${formatMoney(it.ndfl)}</td><td data-label="Взносы" class="tnum">${formatMoney(it.insurance)}</td>`
+              : `<td colspan="3" class="text-muted" style="text-align:center">Нет расчёта</td>`}
           </tr>`).join("")}</tbody>
         </table>`;
       operatingEl.innerHTML = `
         <table class="data-table">
-          <thead><tr><th>РњРµРЅРµРґР¶РµСЂ</th><th>РњР°СЂР¶Р°</th><th>РќР”РЎ 5%</th><th>РћС„РёСЃ</th><th>Р¤РћРў/РњР°СЂР¶Р°</th></tr></thead>
+          <thead><tr><th>Менеджер</th><th>Маржа</th><th>НДС 5%</th><th>Офис</th><th>ФОТ/Маржа</th></tr></thead>
           <tbody>${r.items.map(it => {
             const st = it.fot_status || "none";
             return `<tr>
-              <td data-label="РњРµРЅРµРґР¶РµСЂ"><b>${escapeHtml(it.full_name)}</b></td>
+              <td data-label="Менеджер"><b>${escapeHtml(it.full_name)}</b></td>
               ${it.has_record
-                ? `<td data-label="РњР°СЂР¶Р°" class="tnum">${formatMoney(it.margin)}</td><td data-label="РќР”РЎ" class="tnum">${formatMoney(it.vat)}</td>`
-                : `<td colspan="2" class="text-muted" style="text-align:center">РќРµС‚ СЂР°СЃС‡С‘С‚Р°</td>`}
-              <td data-label="РћС„РёСЃ" class="tnum">${formatMoney(it.office)}</td>
-              <td data-label="Р¤РћРў/РњР°СЂР¶Р°" class="tnum ${fotCellClass[st] || ""}">${it.fot_margin_pct == null ? "вЂ”" : it.fot_margin_pct + "%"}</td>
+                ? `<td data-label="Маржа" class="tnum">${formatMoney(it.margin)}</td><td data-label="НДС" class="tnum">${formatMoney(it.vat)}</td>`
+                : `<td colspan="2" class="text-muted" style="text-align:center">Нет расчёта</td>`}
+              <td data-label="Офис" class="tnum">${formatMoney(it.office)}</td>
+              <td data-label="ФОТ/Маржа" class="tnum ${fotCellClass[st] || ""}">${it.fot_margin_pct == null ? "—" : it.fot_margin_pct + "%"}</td>
             </tr>`;
           }).join("")}</tbody>
         </table>`;
@@ -1114,51 +1114,51 @@
     overlay.className = "modal-bg visible";
     overlay.innerHTML = `
       <div class="modal modal-formula">
-        <div class="modal-title-row"><div class="modal-title">Р¤РѕСЂРјСѓР»С‹ СЂР°СЃС…РѕРґРѕРІ</div><button class="modal-close" type="button" onclick="this.closest('.modal-bg').remove()">вњ•</button></div>
+        <div class="modal-title-row"><div class="modal-title">Формулы расходов</div><button class="modal-close" type="button" onclick="this.closest('.modal-bg').remove()">✕</button></div>
         <div class="formula-section">
-          <div class="formula-section-title">1. Р¤РћРў (gross)</div>
-          <div class="formula-line"><span class="ftxt">Р¤РћРў</span><span class="fsep">=</span><span class="ftxt">РћРєР»Р°Рґ</span><span class="fsep">Г—</span><span class="fval">РѕС‚СЂР°Р±РѕС‚Р°РЅРѕГ·СЂР°Р±.РґРЅРµР№</span><span class="fsep">+</span><span class="ftxt">РџСЂРµРјРёСЏ СѓСЃР»СѓРі + РџСЂРµРјРёСЏ С‚РѕРІР°СЂР°</span></div>
-          <div class="formula-sub">Р‘РµСЂС‘С‚СЃСЏ РёР· СЂР°СЃС‡С‘С‚Р° Р—Рџ РјРµРЅРµРґР¶РµСЂР° (РїРѕР»Рµ <b>gross_pay</b>)</div>
+          <div class="formula-section-title">1. ФОТ (gross)</div>
+          <div class="formula-line"><span class="ftxt">ФОТ</span><span class="fsep">=</span><span class="ftxt">Оклад</span><span class="fsep">×</span><span class="fval">отработано÷раб.дней</span><span class="fsep">+</span><span class="ftxt">Премия услуг + Премия товара</span></div>
+          <div class="formula-sub">Берётся из расчёта ЗП менеджера (поле <b>gross_pay</b>)</div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">2. РќР”Р¤Р› <span class="formula-hint">13%</span></div>
-          <div class="formula-line"><span class="ftxt">РќР”Р¤Р›</span><span class="fsep">=</span><span class="ftxt">Р¤РћРў</span><span class="fsep">Г—</span><span class="fval">13%</span></div>
+          <div class="formula-section-title">2. НДФЛ <span class="formula-hint">13%</span></div>
+          <div class="formula-line"><span class="ftxt">НДФЛ</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">×</span><span class="fval">13%</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">3. РЎС‚СЂР°С…РѕРІС‹Рµ РІР·РЅРѕСЃС‹ IT-Р»СЊРіРѕС‚Р° <span class="formula-hint">30%</span></div>
-          <div class="formula-line"><span class="ftxt">Р’Р·РЅРѕСЃС‹</span><span class="fsep">=</span><span class="ftxt">Р¤РћРў</span><span class="fsep">Г—</span><span class="fval">30%</span></div>
+          <div class="formula-section-title">3. Страховые взносы IT-льгота <span class="formula-hint">7.6%</span></div>
+          <div class="formula-line"><span class="ftxt">Взносы</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">×</span><span class="fval">7.6%</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">4. РќР”РЎ <span class="formula-hint">5% СЃ РјР°СЂР¶Рё</span></div>
-          <div class="formula-line"><span class="ftxt">РќР”РЎ</span><span class="fsep">=</span><span class="ftxt">РњР°СЂР¶Р° (СѓСЃР»СѓРіРё+С‚РѕРІР°СЂ)</span><span class="fsep">Г—</span><span class="fval">5%</span></div>
+          <div class="formula-section-title">4. НДС <span class="formula-hint">5% с маржи</span></div>
+          <div class="formula-line"><span class="ftxt">НДС</span><span class="fsep">=</span><span class="ftxt">Маржа (услуги+товар)</span><span class="fsep">×</span><span class="fval">5%</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">5. РћС„РёСЃ <span class="formula-hint">45 000 в‚Ѕ РЅР° СЃРѕС‚СЂСѓРґРЅРёРєР°</span></div>
-          <div class="formula-line"><span class="ftxt">РћС„РёСЃ</span><span class="fsep">=</span><span class="fval">45 000 в‚Ѕ</span><span class="fsep">Г—</span><span class="ftxt">РєРѕР»-РІРѕ РјРµРЅРµРґР¶РµСЂРѕРІ</span></div>
+          <div class="formula-section-title">5. Офис <span class="formula-hint">45 000 ₽ на сотрудника</span></div>
+          <div class="formula-line"><span class="ftxt">Офис</span><span class="fsep">=</span><span class="fval">45 000 ₽</span><span class="fsep">×</span><span class="ftxt">кол-во менеджеров</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">6. Р—Рџ-СЂР°СЃС…РѕРґС‹</div>
-          <div class="formula-line"><span class="ftxt">Р—Рџ-СЂР°СЃС…РѕРґС‹</span><span class="fsep">=</span><span class="ftxt">Р¤РћРў + РќР”Р¤Р› + Р’Р·РЅРѕСЃС‹</span></div>
+          <div class="formula-section-title">6. ЗП-расходы</div>
+          <div class="formula-line"><span class="ftxt">ЗП-расходы</span><span class="fsep">=</span><span class="ftxt">ФОТ + НДФЛ + Взносы</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">7. РћРїРµСЂР°С†РёРѕРЅРЅС‹Рµ СЂР°СЃС…РѕРґС‹</div>
-          <div class="formula-line"><span class="ftxt">РћРїРµСЂР°С†.</span><span class="fsep">=</span><span class="ftxt">РќР”РЎ + РћС„РёСЃ</span></div>
+          <div class="formula-section-title">7. Операционные расходы</div>
+          <div class="formula-line"><span class="ftxt">Операц.</span><span class="fsep">=</span><span class="ftxt">НДС + Офис</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">8. Р¤РћРў / РњР°СЂР¶Р° <span class="formula-hint">РЅРѕСЂРјС‹ РђР Рў</span></div>
-          <div class="formula-line"><span class="ftxt">Р¤РћРў/РњР°СЂР¶Р°</span><span class="fsep">=</span><span class="ftxt">Р¤РћРў</span><span class="fsep">Г·</span><span class="ftxt">РњР°СЂР¶Р°</span><span class="fsep">Г—</span><span class="fval">100%</span></div>
-          <div class="formula-sub">Р—РµР»С‘РЅР°СЏ Р·РѕРЅР°: <b>в‰¤ 20%</b> (РЅРѕСЂРјР°) В· Р–С‘Р»С‚Р°СЏ: <b>20вЂ“25%</b> В· РљСЂР°СЃРЅР°СЏ: <b>> 25%</b> (РєСЂРёС‚РёС‡РЅРѕ)</div>
+          <div class="formula-section-title">8. ФОТ / Маржа <span class="formula-hint">нормы АРТ</span></div>
+          <div class="formula-line"><span class="ftxt">ФОТ/Маржа</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">÷</span><span class="ftxt">Маржа</span><span class="fsep">×</span><span class="fval">100%</span></div>
+          <div class="formula-sub">Зелёная зона: <b>≤ 20%</b> (норма) · Жёлтая: <b>20–25%</b> · Красная: <b>> 25%</b> (критично)</div>
         </div>
-        <div class="modal-actions"><button class="btn-accent" onclick="this.closest('.modal-bg').remove()">РџРѕРЅСЏС‚РЅРѕ</button></div>
+        <div class="modal-actions"><button class="btn-accent" onclick="this.closest('.modal-bg').remove()">Понятно</button></div>
       </div>`;
     document.body.appendChild(overlay);
   }
 
   function escapeHtml(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
   function round2(v) { return Math.round((Number(v) + Number.EPSILON) * 100) / 100; }
-  function formatMoney(v) { const n = Number(v || 0); return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " в‚Ѕ"; }
-  function formatMoneyShort(v) { const n = Number(v || 0); if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + " РјР»РЅ в‚Ѕ"; if (Math.abs(n) >= 1e3) return Math.round(n).toLocaleString("ru-RU") + " в‚Ѕ"; return formatMoney(v); }
-  function shortMoney(v) { const n = Number(v || 0); if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "Рњ"; if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + "Рє"; return String(Math.round(n)); }
+  function formatMoney(v) { const n = Number(v || 0); return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₽"; }
+  function formatMoneyShort(v) { const n = Number(v || 0); if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(2) + " млн ₽"; if (Math.abs(n) >= 1e3) return Math.round(n).toLocaleString("ru-RU") + " ₽"; return formatMoney(v); }
+  function shortMoney(v) { const n = Number(v || 0); if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "М"; if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + "к"; return String(Math.round(n)); }
 
   function toggleTheme() { const html = document.documentElement; const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark"; html.setAttribute("data-theme", next); localStorage.setItem("bitserves_theme", next); }
   function initTheme() { const saved = localStorage.getItem("bitserves_theme"); if (saved) document.documentElement.setAttribute("data-theme", saved); }
