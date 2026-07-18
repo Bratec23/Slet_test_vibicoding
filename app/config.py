@@ -10,6 +10,13 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/bitserves.db"
     CORS_ORIGINS: str = "*"
 
+    HEAD_REGISTER_PASSWORD: str = "123456789"
+
+    OFFICE_COST_PER_EMPLOYEE: float = 45000.0
+    INSURANCE_RATE_PERCENT: float = 7.6
+    VAT_RATE_PERCENT: float = 5.0
+    NDFL_RATE_PERCENT: float = 13.0
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

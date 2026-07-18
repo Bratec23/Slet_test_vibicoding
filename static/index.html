@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Бит.Serves — единая среда менеджера</title>
+<title>Бит.Serves — единая среда</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300..700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -11,7 +11,6 @@
 </head>
 <body>
 
-<!-- TOAST -->
 <div id="toast-container"></div>
 
 <!-- ============ LOGIN SCREEN ============ -->
@@ -28,7 +27,7 @@
       <span class="logo-text">Бит<span class="logo-dot">.</span><span class="logo-accent">Serves</span></span>
     </div>
     <div class="login-title">Вход в систему</div>
-    <div class="login-sub">Единая среда микросервисов для менеджера</div>
+    <div class="login-sub">Единая среда микросервисов</div>
 
     <div id="login-tabs" class="login-tabs">
       <button class="tab active" data-tab="signin" onclick="App.switchAuthTab('signin')">Вход</button>
@@ -38,7 +37,14 @@
     <form id="auth-form" onsubmit="event.preventDefault(); App.submitAuth();">
       <div id="signup-fields" style="display:none">
         <div class="form-group">
-          <label class="form-label" for="full_name">ФИО менеджера</label>
+          <label class="form-label">Роль</label>
+          <div class="role-switch">
+            <label class="role-option"><input type="radio" name="role" value="manager" checked onchange="App.onRoleChange()"><span>Менеджер</span></label>
+            <label class="role-option"><input type="radio" name="role" value="head" onchange="App.onRoleChange()"><span>Руководитель</span></label>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="full_name">ФИО</label>
           <input class="form-input" id="full_name" type="text" placeholder="Например: Иванов Алексей" autocomplete="name">
         </div>
         <div class="form-group">
@@ -62,16 +68,16 @@
         <label class="form-label" for="password">Пароль</label>
         <input class="form-input" id="password" type="password" placeholder="Минимум 6 символов" autocomplete="current-password" required minlength="6">
       </div>
+      <div id="head-hint" class="auth-hint" style="display:none">Руководитель регистрируется со служебным паролем 123456789</div>
       <div id="auth-error" class="auth-error" style="display:none"></div>
       <button class="btn-primary" type="submit" id="auth-submit">Войти в систему</button>
     </form>
   </div>
 </div>
 
-<!-- ============ APP SCREEN ============ -->
+<!-- ============ MANAGER APP ============ -->
 <div id="app-screen" class="screen">
 
-  <!-- SIDEBAR -->
   <aside class="sidebar">
     <div class="sidebar-logo">
       <div class="logo-wordmark">
@@ -97,24 +103,13 @@
         Заработная плата
         <span id="payroll-badge" class="nav-badge" style="display:none">1</span>
       </div>
-      <div class="nav-item disabled" data-route="payroll-history" id="nav-payroll-history" onclick="App.navigate('payroll-history')">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
-        История ЗП
-      </div>
       <div class="nav-item disabled" data-route="soon1">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        Календарь проектов
-        <span class="nav-tag">скоро</span>
+        Календарь проектов <span class="nav-tag">скоро</span>
       </div>
       <div class="nav-item disabled" data-route="soon2">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
-        Аналитика продаж
-        <span class="nav-tag">скоро</span>
-      </div>
-      <div class="nav-item disabled" data-route="soon3">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-        Управление заявками
-        <span class="nav-tag">скоро</span>
+        Аналитика продаж <span class="nav-tag">скоро</span>
       </div>
       <div class="nav-section-label" style="margin-top: var(--space-3);">Система</div>
       <div class="nav-item" data-route="profile" onclick="App.navigate('profile')">
@@ -134,48 +129,39 @@
     </div>
   </aside>
 
-  <!-- MAIN -->
   <div class="main-content">
 
-    <!-- MENU PAGE -->
+    <!-- MENU -->
     <div id="page-menu" class="page">
       <div class="page-body">
         <div class="section-header">
           <div class="section-title">Микросервисы</div>
-          <div class="section-desc">Единая среда инструментов менеджера. Выберите доступный микросервис.</div>
+          <div class="section-desc">Единая среда инструментов менеджера</div>
         </div>
         <div class="services-grid">
           <div id="svc-payroll" class="service-card" onclick="App.navigate('payroll')">
-            <div class="service-icon">
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-            </div>
+            <div class="service-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg></div>
             <div class="service-body">
               <div class="service-title">Заработная плата</div>
-              <div class="service-desc">Расчёт ЗП менеджера по марже и грейду с сохранением истории и выгрузкой в Excel</div>
+              <div class="service-desc">Расчёт ЗП по марже и грейду с историей и выгрузкой в Excel</div>
             </div>
             <div id="svc-payroll-status" class="service-status active-open">Доступен</div>
           </div>
           <div class="service-card disabled">
             <div class="service-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
-            <div class="service-body">
-              <div class="service-title">Календарь проектов</div>
-              <div class="service-desc">Планирование и контроль сроков по проектам команды</div>
-            </div>
+            <div class="service-body"><div class="service-title">Календарь проектов</div><div class="service-desc">Планирование и контроль сроков</div></div>
             <div class="service-status soon">Скоро</div>
           </div>
           <div class="service-card disabled">
             <div class="service-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg></div>
-            <div class="service-body">
-              <div class="service-title">Аналитика продаж</div>
-              <div class="service-desc">Дашборды по выручке, конверсии и тенденциям</div>
-            </div>
+            <div class="service-body"><div class="service-title">Аналитика продаж</div><div class="service-desc">Дашборды по выручке</div></div>
             <div class="service-status soon">Скоро</div>
           </div>
         </div>
       </div>
     </div>
 
-    <!-- PAYROLL PAGE -->
+    <!-- PAYROLL -->
     <div id="page-payroll" class="page" style="display:none">
       <div class="topbar">
         <div>
@@ -183,14 +169,8 @@
           <div class="topbar-sub">Микросервис: расчёт заработной платы</div>
         </div>
         <div class="topbar-actions">
-          <button class="btn-ghost" onclick="App.navigate('menu')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7"/><path d="M5 9v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/></svg>
-            К меню
-          </button>
-          <button class="btn-ghost" onclick="App.logout()">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Выйти
-          </button>
+          <button class="btn-ghost" onclick="App.navigate('menu')"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7"/><path d="M5 9v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/></svg>К меню</button>
+          <button class="btn-ghost" onclick="App.logout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Выйти</button>
         </div>
       </div>
 
@@ -205,49 +185,46 @@
         <div class="card payroll-card">
           <div class="card-header">
             <div class="card-title">Параметры расчёта</div>
+            <button class="btn-ghost btn-sm" id="history-toggle" onclick="App.toggleHistory()">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+              Посмотреть историю
+            </button>
           </div>
           <form id="calc-form" onsubmit="event.preventDefault(); App.calculate();">
             <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="calc-period">Период (ГГГГ-ММ)</label>
-                <input class="form-input" id="calc-period" type="month" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="calc-worked">Отработано дней</label>
-                <input class="form-input" id="calc-worked" type="number" min="0" max="31" value="21" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="calc-working">Рабочих дней в месяце</label>
-                <input class="form-input" id="calc-working" type="number" min="1" max="31" value="22" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="calc-tax">НДФЛ, %</label>
-                <input class="form-input" id="calc-tax" type="number" min="0" max="100" step="0.1" value="13" required>
-              </div>
+              <div class="form-group"><label class="form-label" for="calc-period">Период (ГГГГ-ММ)</label><input class="form-input" id="calc-period" type="month" required></div>
+              <div class="form-group"><label class="form-label" for="calc-worked">Отработано дней</label><input class="form-input" id="calc-worked" type="number" min="0" max="31" value="21" required></div>
+              <div class="form-group"><label class="form-label" for="calc-working">Рабочих дней в месяце</label><input class="form-input" id="calc-working" type="number" min="1" max="31" value="22" required></div>
+              <div class="form-group"><label class="form-label" for="calc-tax">НДФЛ, %</label><input class="form-input" id="calc-tax" type="number" min="0" max="100" step="0.1" value="13" required></div>
             </div>
             <div class="margin-header">
               <label class="form-label" style="margin:0">Маржа за период, ₽</label>
               <button type="button" class="btn-info" onclick="App.showFormula()" title="Формула расчёта">Формула расчёта</button>
             </div>
             <div class="form-row">
-              <div class="form-group">
-                <label class="form-label" for="calc-svc-margin">Маржа с услуг</label>
-                <input class="form-input" id="calc-svc-margin" type="number" min="0" step="0.01" value="0" required>
-              </div>
-              <div class="form-group">
-                <label class="form-label" for="calc-goods-margin">Маржа с товара</label>
-                <input class="form-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required>
-              </div>
+              <div class="form-group"><label class="form-label" for="calc-svc-margin">Маржа с услуг</label><input class="form-input" id="calc-svc-margin" type="number" min="0" step="0.01" value="0" required></div>
+              <div class="form-group"><label class="form-label" for="calc-goods-margin">Маржа с товара</label><input class="form-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required></div>
             </div>
             <button class="btn-primary" type="submit">Рассчитать и сохранить</button>
           </form>
-
           <div id="calc-result" class="calc-result" style="display:none"></div>
+        </div>
+
+        <div id="history-collapse" class="card" style="display:none">
+          <div class="chart-toolbar">
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-metric="net_pay" onclick="App.switchMetric('net_pay')">К выплате</button>
+              <button class="chart-tab" data-metric="bonus_total" onclick="App.switchMetric('bonus_total')">Премия</button>
+            </div>
+          </div>
+          <div id="chart-area" class="chart-area"><div class="empty">Нет данных</div></div>
+          <div class="card-inner-header" style="margin-top:var(--space-4)"><div class="card-title">Сводная таблица по месяцам</div></div>
+          <div id="summary-table" class="table-wrap">Нет данных</div>
         </div>
 
         <div class="card">
           <div class="card-header">
-            <div class="card-title">История расчётов</div>
+            <div class="card-title">Все расчёты</div>
             <button class="btn-ghost btn-sm" onclick="App.loadHistory()">Обновить</button>
           </div>
           <div id="payroll-history" class="table-wrap">Нет расчётов</div>
@@ -255,62 +232,137 @@
       </div>
     </div>
 
-    <!-- PAYROLL HISTORY PAGE -->
-    <div id="page-payroll-history" class="page" style="display:none">
+    <!-- PROFILE -->
+    <div id="page-profile" class="page" style="display:none">
       <div class="topbar">
-        <div>
-          <div class="topbar-title">История заработной платы</div>
-          <div class="topbar-sub">Динамика начислений по месяцам — выберите метрику для графика</div>
-        </div>
+        <div><div class="topbar-title">Профиль</div><div class="topbar-sub">Информация об учётной записи и настройках оплаты</div></div>
+        <div class="topbar-actions"><button class="btn-ghost" onclick="App.logout()">Выйти</button></div>
+      </div>
+      <div class="page-body">
+        <div class="card" id="profile-card">Загрузка…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ HEAD APP ============ -->
+<div id="head-screen" class="screen">
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <div class="logo-wordmark">
+        <svg width="20" height="20" viewBox="0 0 32 32" fill="none" style="margin-right:6px">
+          <rect width="32" height="32" rx="6" fill="#1a1a2e"/>
+          <rect x="7" y="8" width="8" height="6" rx="1" fill="#e5006e"/>
+          <rect x="17" y="8" width="8" height="6" rx="1" fill="white" opacity="0.9"/>
+          <rect x="7" y="18" width="8" height="6" rx="1" fill="white" opacity="0.9"/>
+          <rect x="17" y="18" width="8" height="6" rx="1" fill="#e5006e" opacity="0.6"/>
+        </svg>
+        <span class="logo-first">Бит</span><span class="logo-separator">.</span><span class="logo-product">Serves</span>
+      </div>
+      <div id="head-dept-badge" class="dept-badge">Отдел: —</div>
+    </div>
+    <nav class="sidebar-nav">
+      <div class="nav-section-label">Руководитель отдела</div>
+      <div class="nav-item active" data-route="head-dashboard" onclick="App.navigate('head-dashboard')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        Дашборд отдела
+      </div>
+      <div class="nav-item" data-route="head-profitability" onclick="App.navigate('head-profitability')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        Рентабельность
+      </div>
+      <div class="nav-item" data-route="head-costs" onclick="App.navigate('head-costs')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+        Расходы
+      </div>
+      <div class="nav-section-label" style="margin-top: var(--space-3);">Система</div>
+      <div class="nav-item" data-route="profile" onclick="App.navigate('profile')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        Профиль
+      </div>
+    </nav>
+    <div class="sidebar-user">
+      <div class="user-avatar" id="head-avatar">Р</div>
+      <div class="user-info">
+        <div class="user-name" id="head-username">Руководитель</div>
+        <div class="user-role" id="head-email"></div>
+      </div>
+      <button class="theme-toggle" title="Сменить тему" onclick="App.toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg></button>
+    </div>
+  </aside>
+
+  <div class="main-content">
+
+    <!-- HEAD DASHBOARD -->
+    <div id="page-head-dashboard" class="page">
+      <div class="topbar">
+        <div><div class="topbar-title">Дашборд отдела</div><div class="topbar-sub">Менеджеры вашего отдела и их расчёты ЗП</div></div>
         <div class="topbar-actions">
-          <button class="btn-ghost" onclick="App.navigate('menu')">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7"/><path d="M5 9v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/></svg>
-            К меню
-          </button>
+          <input class="form-input period-input" id="head-team-period" type="month"><button class="btn-accent btn-sm" onclick="App.loadTeam()">Загрузить</button>
+          <button class="btn-ghost" onclick="App.logout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Выйти</button>
         </div>
       </div>
-
       <div class="page-body">
-        <div class="section-header">
-          <div class="section-title">Динамика по месяцам</div>
-          <div class="section-desc">Если в одном периоде было несколько расчётов — берётся последний по дате</div>
-        </div>
-
+        <div class="section-header"><div class="section-title">Команда отдела</div><div class="section-desc">Укажите период, чтобы увидеть последние расчёты менеджеров</div></div>
+        <div id="team-summary" class="kpis-row"></div>
         <div class="card">
-          <div class="chart-toolbar">
-            <div class="chart-tabs">
-              <button class="chart-tab active" data-metric="net_pay" onclick="App.switchMetric('net_pay')">К выплате</button>
-              <button class="chart-tab" data-metric="bonus_total" onclick="App.switchMetric('bonus_total')">Премия</button>
-            </div>
-          </div>
-          <div id="chart-area" class="chart-area">
-            <div class="empty">Нет данных для графика. Сделайте первый расчёт во вкладке «Заработная плата».</div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div class="card-title">Сводная таблица по месяцам</div>
-            <button class="btn-ghost btn-sm" onclick="App.loadSummary()">Обновить</button>
-          </div>
-          <div id="summary-table" class="table-wrap">Нет данных</div>
+          <div class="card-header"><div class="card-title">Менеджеры отдела</div></div>
+          <div id="team-table" class="table-wrap">Выберите период и нажмите «Загрузить»</div>
         </div>
       </div>
     </div>
 
-    <!-- PROFILE PAGE -->
-    <div id="page-profile" class="page" style="display:none">
+    <!-- HEAD PROFITABILITY -->
+    <div id="page-head-profitability" class="page" style="display:none">
       <div class="topbar">
-        <div>
-          <div class="topbar-title">Профиль</div>
-          <div class="topbar-sub">Информация об учётной записи и настройках оплаты</div>
-        </div>
+        <div><div class="topbar-title">Расчёт рентабельности</div><div class="topbar-sub">Ввод себестоимости продаж по каждому менеджеру</div></div>
         <div class="topbar-actions">
-          <button class="btn-ghost" onclick="App.logout()">Выйти</button>
+          <input class="form-input period-input" id="head-profit-period" type="month">
+          <button class="btn-accent btn-sm" onclick="App.loadProfitForm()">Загрузить менеджеров</button>
         </div>
       </div>
       <div class="page-body">
-        <div class="card" id="profile-card">Загрузка…</div>
+        <div class="section-header">
+          <div class="section-title">Рентабельность по сотрудникам</div>
+          <div class="section-desc">Маржа берётся из расчёта ЗП менеджера за выбранный период. Расходы: ФОТ + НДФЛ + взносы (7.6% IT) + НДС (5% с маржи) + офис (45 000 ₽/сотр.)</div>
+        </div>
+        <div class="card">
+          <div id="profit-form" class="table-wrap">Выберите период и нажмите «Загрузить менеджеров»</div>
+          <div style="margin-top:var(--space-4); text-align:right">
+            <button class="btn-primary" style="width:auto" onclick="App.calcProfitability()">Рассчитать рентабельность</button>
+          </div>
+        </div>
+        <div id="profit-result" class="card" style="display:none"></div>
+      </div>
+    </div>
+
+    <!-- HEAD COSTS -->
+    <div id="page-head-costs" class="page" style="display:none">
+      <div class="topbar">
+        <div><div class="topbar-title">Расходы отдела</div><div class="topbar-sub">Сводка по статьям расходов за период</div></div>
+        <div class="topbar-actions">
+          <input class="form-input period-input" id="head-costs-period" type="month">
+          <button class="btn-accent btn-sm" onclick="App.loadCosts()">Загрузить</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="section-header"><div class="section-title">Расходы по сотрудникам</div><div class="section-desc">Статьи: ФОТ, НДФЛ, страховые взносы 7.6%, НДС 5% от маржи, офис 45 000 ₽ на сотрудника</div></div>
+        <div id="costs-totals" class="kpis-row"></div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Детализация по сотрудникам</div></div>
+          <div id="costs-table" class="table-wrap">Выберите период и нажмите «Загрузить»</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PROFILE (REUSED) -->
+    <div id="page-profile-head" class="page" style="display:none">
+      <div class="topbar">
+        <div><div class="topbar-title">Профиль руководителя</div><div class="topbar-sub">Информация об учётной записи</div></div>
+        <div class="topbar-actions"><button class="btn-ghost" onclick="App.logout()">Выйти</button></div>
+      </div>
+      <div class="page-body">
+        <div class="card" id="head-profile-card">Загрузка…</div>
       </div>
     </div>
   </div>

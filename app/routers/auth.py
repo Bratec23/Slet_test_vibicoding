@@ -1,9 +1,12 @@
+from typing import Literal, Optional
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, EmailStr, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.models import Department, Grade, Position, User
 from app.security import create_access_token, decode_access_token, hash_password, verify_password
@@ -20,6 +23,7 @@ class RegisterRequest(BaseModel):
     department_id: int
     position_id: int
     grade_id: str
+    role: Literal["manager", "head"] = "manager"
 
 
 class LoginRequest(BaseModel):
@@ -109,6 +113,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return user
 
 
+def get_current_head(current: User = Depends(get_current_user)) -> User:
+    if current.role != "head":
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Требуется роль руководителя")
+    return current
+
+
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
 def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     existing = db.scalar(select(User).where(User.email == payload.email.lower()))
@@ -127,10 +137,17 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if not grade or not grade.is_active:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден")
 
+    if payload.role == "head":
+        if payload.password != settings.HEAD_REGISTER_PASSWORD:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Для регистрации руководителя введите служебный пароль (обратитесь к администратору)",
+            )
+
     user = User(
         email=payload.email.lower(),
         full_name=payload.full_name.strip(),
-        role="manager",
+        role=payload.role,
         password_hash=hash_password(payload.password),
         department_id=dept.id,
         position_id=pos.id,
