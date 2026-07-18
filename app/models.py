@@ -43,11 +43,24 @@ class Grade(Base):
     bonus_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
     service_factor: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0.5)
     has_plan: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    plan_margin: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, default=None)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     users: Mapped[list["User"]] = relationship("User", back_populates="grade")
     payrolls: Mapped[list["PayrollRecord"]] = relationship("PayrollRecord", back_populates="grade")
+    tiers: Mapped[list["GradeTier"]] = relationship("GradeTier", back_populates="grade", cascade="all, delete-orphan", order_by="GradeTier.min_pct")
+
+
+class GradeTier(Base):
+    __tablename__ = "grade_tiers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    grade_id: Mapped[str] = mapped_column(String(50), ForeignKey("grades.id", ondelete="CASCADE"), index=True, nullable=False)
+    min_pct: Mapped[float] = mapped_column(Numeric(7, 2), nullable=False, default=0)
+    bonus_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
+
+    grade: Mapped["Grade"] = relationship("Grade", back_populates="tiers")
 
 
 class User(Base):
@@ -93,6 +106,9 @@ class PayrollRecord(Base):
     tax_amount: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     net_pay: Mapped[float] = mapped_column(Numeric(12, 2), nullable=False, default=0)
     grade_id: Mapped[str] = mapped_column(String(50), ForeignKey("grades.id"), nullable=False)
+    plan_margin: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, default=None)
+    margin_for_plan: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    performance_pct: Mapped[float | None] = mapped_column(Numeric(7, 2), nullable=True, default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped["User"] = relationship("User", back_populates="payrolls")

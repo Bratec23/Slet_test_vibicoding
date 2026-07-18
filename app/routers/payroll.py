@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -7,9 +7,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.export import generate_payroll_xlsx
-from app.models import PayrollRecord, User
+from app.models import Grade, GradeTier, PayrollRecord, User
 from app.routers.auth import get_current_user
 
 
@@ -47,6 +48,11 @@ class PayrollOut(BaseModel):
     net_pay: float
     grade_id: str
     grade_name: str
+    has_plan: bool = False
+    plan_margin: Optional[float] = None
+    margin_total: float = 0
+    margin_for_plan: float = 0
+    performance_pct: Optional[float] = None
 
     class Config:
         from_attributes = False
@@ -58,6 +64,26 @@ def _ensure_can_calculate(user: User) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Расчёт заработной платы доступен только для отдела Развитие АРТ",
         )
+
+
+def _margin_for_plan(service_margin: float, goods_margin: float) -> float:
+    return round((float(service_margin) + float(goods_margin)) * (1 - settings.VAT_RATE_PERCENT / 100), 2)
+
+
+def _resolve_bonus_percent(grade: Grade, margin_for_plan: float, db: Session) -> float:
+    if not grade.has_plan or grade.plan_margin is None or float(grade.plan_margin) <= 0:
+        return float(grade.bonus_percent)
+    if margin_for_plan <= 0:
+        return 0.0
+    plan = float(grade.plan_margin)
+    performance_pct = margin_for_plan / plan * 100
+    tiers = db.scalars(
+        select(GradeTier).where(GradeTier.grade_id == grade.id).order_by(GradeTier.min_pct.desc())
+    ).all()
+    for tier in tiers:
+        if performance_pct >= float(tier.min_pct):
+            return float(tier.bonus_percent)
+    return 0.0
 
 
 def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: PayrollCalcIn) -> dict:
@@ -80,6 +106,10 @@ def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: Pa
 
 
 def _payroll_out(rec: PayrollRecord) -> dict:
+    grade = rec.grade
+    plan_margin = float(rec.plan_margin) if rec.plan_margin is not None else None
+    performance_pct = float(rec.performance_pct) if rec.performance_pct is not None else None
+    has_plan = bool(grade.has_plan) if grade else False
     return {
         "id": rec.id,
         "period": rec.period,
@@ -99,7 +129,12 @@ def _payroll_out(rec: PayrollRecord) -> dict:
         "tax_amount": float(rec.tax_amount),
         "net_pay": float(rec.net_pay),
         "grade_id": rec.grade_id,
-        "grade_name": (rec.grade.name if rec.grade else rec.grade_id),
+        "grade_name": (grade.name if grade else rec.grade_id),
+        "has_plan": has_plan,
+        "plan_margin": plan_margin,
+        "margin_total": round(float(rec.service_margin) + float(rec.goods_margin), 2),
+        "margin_for_plan": float(rec.margin_for_plan),
+        "performance_pct": performance_pct,
     }
 
 
@@ -110,9 +145,14 @@ def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), use
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Отработано дней не может быть больше рабочих дней в месяце")
     grade = user.grade
     base_salary = float(grade.base_salary)
-    bonus_percent = float(grade.bonus_percent)
     service_factor = float(grade.service_factor)
+    margin_for_plan = _margin_for_plan(payload.service_margin, payload.goods_margin)
+    bonus_percent = _resolve_bonus_percent(grade, margin_for_plan, db)
     calc = _calc(base_salary, bonus_percent, service_factor, payload)
+    if grade.has_plan and grade.plan_margin is not None and float(grade.plan_margin) > 0:
+        performance_pct = round(margin_for_plan / float(grade.plan_margin) * 100, 2)
+    else:
+        performance_pct = None
     record = PayrollRecord(
         user_id=user.id,
         period=payload.period,
@@ -125,6 +165,9 @@ def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), use
         base_salary=base_salary,
         tax_rate=payload.tax_rate,
         grade_id=grade.id,
+        plan_margin=(float(grade.plan_margin) if grade.plan_margin is not None else None),
+        margin_for_plan=margin_for_plan,
+        performance_pct=performance_pct,
         **calc,
     )
     db.add(record)

@@ -188,23 +188,136 @@ const App = (() => {
     document.querySelectorAll(".page").forEach(p => p.style.display = "none");
     const page = $(`#page-${route}`);
     if (page) page.style.display = "block";
-    if (route === "payroll") { loadGradePill(); loadHistory(); }
-    if (route === "profile") { loadProfile(); }
+    if (route === "payroll") { loadGradePill(); loadHistory(); setTimeout(() => attachAllMasksIn($("#page-payroll")), 50); }
+    if (route === "profile") { loadProfile(); setTimeout(() => attachAllMasksIn($("#page-profile").parentNode), 50); }
     if (route === "head-dashboard") { loadDashboard(); }
+    if (route === "head-profitability") { setTimeout(attachMasksProfit, 50); }
     if (route === "head-analytics") { loadAnalytics(); }
+  }
+
+  function attachMasksProfit() {
+    if ($("#profit-form")) attachAllMasksIn($("#profit-form"));
+    if ($("#calc-form")) attachAllMasksIn($("#calc-form"));
   }
 
   function loadGradePill() {
     const user = getUser();
     if (!user) return;
     const g = user.grade || {};
+    const planText = g.has_plan && g.plan_margin != null ? formatMoney(g.plan_margin) : "—";
     $("#grade-pill").innerHTML = `
-      <div class="gp-item"><div class="gp-label">ФИО</div><div class="gp-value">${escapeHtml(user.full_name || "—")}</div></div>
-      <div class="gp-item"><div class="gp-label">Должность</div><div class="gp-value">${escapeHtml(user.position ? user.position.name : "—")}</div></div>
-      <div class="gp-item"><div class="gp-label">Грейд</div><div class="gp-value">${escapeHtml(g.name || "—")}</div></div>
-      <div class="gp-item"><div class="gp-label">Оклад</div><div class="gp-value">${g.base_salary != null ? formatMoney(g.base_salary) : "—"}</div></div>
-      <div class="gp-item"><div class="gp-label">% премии</div><div class="gp-value">${g.bonus_percent != null ? g.bonus_percent + "%" : "—"}</div></div>
-      <div class="gp-item"><div class="gp-label">Коэф. услуг</div><div class="gp-value">${g.service_factor != null ? Number(g.service_factor).toFixed(2) : "—"}</div></div>`;
+      <div class="gp-grid">
+        <div class="gp-item"><div class="gp-label">ФИО</div><div class="gp-value">${escapeHtml(user.full_name || "—")}</div></div>
+        <div class="gp-item"><div class="gp-label">Должность</div><div class="gp-value">${escapeHtml(user.position ? user.position.name : "—")}</div></div>
+        <div class="gp-item"><div class="gp-label">Грейд</div><div class="gp-value">${escapeHtml(g.name || "—")}</div></div>
+        <div class="gp-item"><div class="gp-label">Оклад</div><div class="gp-value">${g.base_salary != null ? formatMoney(g.base_salary) : "—"}</div></div>
+        <div class="gp-item"><div class="gp-label">Коэф. услуг</div><div class="gp-value">${g.service_factor != null ? Number(g.service_factor).toFixed(2) : "—"}</div></div>
+        <div class="gp-item"><div class="gp-label">План по марже</div><div class="gp-value">${planText}</div></div>
+      </div>
+      <div id="plan-progress" class="plan-progress" style="display:${g.has_plan ? "block" : "none"}">
+        <div class="plan-progress-row">
+          <span class="plan-label">Маржа за период:</span> <b id="plan-margin-now">0 ₽</b>
+          <span class="plan-muted">| Маржа для плана (−5% НДС): <b id="plan-margin-net">0 ₽</b></span>
+          <span class="plan-muted">| Выполнено: <b id="plan-perf">0%</b></span>
+          <span class="plan-muted">| Ступень: <b id="plan-tier">—</b></span>
+        </div>
+        <div class="plan-bar-wrap"><div class="plan-bar" id="plan-bar"></div>
+          <div class="plan-bar-tick" style="left:45%"></div>
+          <div class="plan-bar-tick" style="left:65%"></div>
+          <div class="plan-bar-tick" style="left:75%"></div>
+          <div class="plan-bar-tick" style="left:100%"></div>
+        </div>
+        <div class="plan-bar-scale">
+          <span>0%</span><span>90%</span><span>130%</span><span>150%</span><span>200%</span>
+        </div>
+      </div>`;
+    updateLiveEstimate();
+    attachLiveInputs();
+  }
+
+  function attachLiveInputs() {
+    ["#calc-svc-margin", "#calc-goods-margin"].forEach(sel => {
+      const el = $(sel);
+      if (el && !el.dataset.liveAttached) {
+        el.dataset.liveAttached = "1";
+        el.addEventListener("input", updateLiveEstimate);
+      }
+    });
+  }
+
+  function updateLiveEstimate() {
+    const user = getUser();
+    if (!user || !user.grade || !user.grade.has_plan) return;
+    const g = user.grade;
+    const svc = parseNumInput($("#calc-svc-margin"));
+    const goods = parseNumInput($("#calc-goods-margin"));
+    const marginTotal = svc + goods;
+    const marginNet = round2(marginTotal * 0.95);
+    const plan = Number(g.plan_margin) || 0;
+    const perf = plan > 0 ? round2(marginNet / plan * 100) : 0;
+    const tier = resolveTier(g, perf);
+    setPlanUI(marginTotal, marginNet, perf, tier);
+  }
+
+  function resolveTier(grade, perf) {
+    const tiers = (grade.tiers || []).slice().sort((a, b) => b.min_pct - a.min_pct);
+    for (const t of tiers) {
+      if (perf >= Number(t.min_pct)) return Number(t.bonus_percent);
+    }
+    return 0;
+  }
+
+  function setPlanUI(marginTotal, marginNet, perf, tier) {
+    const mNow = $("#plan-margin-now"); if (mNow) mNow.textContent = formatMoney(marginTotal);
+    const mNet = $("#plan-margin-net"); if (mNet) mNet.textContent = formatMoney(marginNet);
+    const pEl = $("#plan-perf"); if (pEl) pEl.textContent = perf + "%";
+    const tEl = $("#plan-tier");
+    if (tEl) {
+      tEl.textContent = tier + "%";
+      tEl.className = tier === 0 ? "plan-tier-zero" : "plan-tier-ok";
+    }
+    const bar = $("#plan-bar");
+    if (bar) {
+      const w = Math.min(100, perf / 200 * 100);
+      bar.style.width = w + "%";
+      bar.className = "plan-bar " + (perf < 90 ? "plan-bar-low" : perf < 130 ? "plan-bar-mid" : "plan-bar-high");
+    }
+  }
+
+  function parseNumInput(el) {
+    if (!el) return 0;
+    if (el.dataset.raw != null) return parseFloat(el.dataset.raw) || 0;
+    const v = parseFloat(el.value);
+    return isNaN(v) ? 0 : v;
+  }
+
+  function formatNumber(v) { return Number(v || 0).toLocaleString("ru-RU", { maximumFractionDigits: 2 }); }
+
+  function attachNumberMask(el) {
+    if (!el || el.dataset.maskAttached) return;
+    el.dataset.maskAttached = "1";
+    el.dataset.raw = el.value || "0";
+    el.type = "text";
+    el.inputMode = "decimal";
+    if (el.value !== "" && el.value !== "0") el.value = formatNumber(parseFloat(el.value) || 0);
+    el.addEventListener("input", () => {
+      let raw = el.value.replace(/[^\d.,-]/g, "").replace(/\s+/g, "");
+      raw = raw.replace(",", ".");
+      const negative = raw.startsWith("-");
+      raw = raw.replace(/-/g, "");
+      if (raw === "" || raw === ".") { el.dataset.raw = "0"; el.value = negative ? "-" : ""; return; }
+      const parts = raw.split(".");
+      const intPart = parts[0].replace(/^0+(?=\d)/, "");
+      let decPart = parts.length > 1 ? "." + parts.slice(1).join("").slice(0, 2) : "";
+      const intFmt = intPart.replace(/\B(?=(\d{3})+(?!\d))/g, " ");
+      el.value = (negative ? "-" : "") + intFmt + decPart;
+      el.dataset.raw = (negative ? "-" : "") + (intPart || "0") + decPart;
+    });
+    el.addEventListener("focus", () => { el.select(); });
+  }
+
+  function attachAllMasksIn(scope) {
+    (scope || document).querySelectorAll(".number-input").forEach(attachNumberMask);
   }
 
   function toggleHistory() {
@@ -221,8 +334,8 @@ const App = (() => {
       period: ($("#calc-period").value || new Date().toISOString().slice(0, 7)),
       worked_days: parseInt($("#calc-worked").value),
       working_days: parseInt($("#calc-working").value),
-      service_margin: parseFloat($("#calc-svc-margin").value) || 0,
-      goods_margin: parseFloat($("#calc-goods-margin").value) || 0,
+      service_margin: parseNumInput($("#calc-svc-margin")),
+      goods_margin: parseNumInput($("#calc-goods-margin")),
       tax_rate: parseFloat($("#calc-tax").value) || 13,
     };
     const resBox = $("#calc-result");
@@ -427,36 +540,54 @@ const App = (() => {
 
   function showFormula() {
     const user = getUser();
-    const g = (user && user.grade) ? user.grade : { base_salary: 0, bonus_percent: 0, service_factor: 0.5 };
-    const svc = parseFloat($("#calc-svc-margin").value) || 0;
-    const goods = parseFloat($("#calc-goods-margin").value) || 0;
+    const g = (user && user.grade) ? user.grade : { base_salary: 0, bonus_percent: 0, service_factor: 0.5, has_plan: false, plan_margin: null, tiers: [] };
+    const svc = parseNumInput($("#calc-svc-margin"));
+    const goods = parseNumInput($("#calc-goods-margin"));
     const worked = parseInt($("#calc-worked").value) || 0;
     const working = parseInt($("#calc-working").value) || 1;
     const tax = parseFloat($("#calc-tax").value) || 13;
     const accrued = round2(g.base_salary * worked / working);
-    const svcBonus = round2(svc * g.service_factor * g.bonus_percent / 100);
-    const goodsBonus = round2(goods * g.bonus_percent / 100);
+    const marginTotal = svc + goods;
+    const marginNet = round2(marginTotal * 0.95);
+    let bonusPercent = g.bonus_percent || 0;
+    let perf = null;
+    if (g.has_plan && g.plan_margin && g.plan_margin > 0) {
+      perf = round2(marginNet / g.plan_margin * 100);
+      bonusPercent = resolveTier(g, perf);
+    }
+    const svcBonus = round2(svc * g.service_factor * bonusPercent / 100);
+    const goodsBonus = round2(goods * bonusPercent / 100);
     const bonusTotal = round2(svcBonus + goodsBonus);
     const gross = round2(accrued + bonusTotal);
     const taxAmt = round2(gross * tax / 100);
     const net = round2(gross - taxAmt);
     const overlay = document.createElement("div");
     overlay.className = "modal-bg visible";
+    let planHtml = "";
+    if (g.has_plan && g.plan_margin) {
+      planHtml = `
+        <div class="formula-section">
+          <div class="formula-section-title">0. План и ступень</div>
+          <div class="formula-line"><span class="ftxt">План</span><span class="fsep">=</span><span class="fval">${formatMoney(g.plan_margin)}</span><span class="fsep">·</span><span class="ftxt">Маржа для плана</span><span class="fsep">=</span><span class="fval">${formatMoney(marginNet)}</span><span class="fsep">(−5% НДС)</span></div>
+          <div class="formula-line"><span class="ftxt">Выполнение</span><span class="fsep">=</span><span class="fval">${perf}%</span><span class="fsep">→</span><span class="fresult">Ступень: ${bonusPercent}%</span></div>
+        </div>`;
+    }
     overlay.innerHTML = `
       <div class="modal modal-formula">
         <div class="modal-title">Формула расчёта</div>
+        ${planHtml}
         <div class="formula-section">
           <div class="formula-section-title">1. Начисление по окладу</div>
           <div class="formula-line"><span class="ftxt">Оклад</span><span class="fsep">×</span><span class="fval">${worked}</span><span class="fsep">÷</span><span class="fval">${working}</span><span class="fsep">=</span><span class="fresult">${formatMoney(accrued)}</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">2. Премия за услуги <span class="formula-hint">× коэффициент ${Number(g.service_factor).toFixed(2)} · ${g.bonus_percent}%</span></div>
-          <div class="formula-line"><span class="ftxt">Маржа услуг</span><span class="fsep">×</span><span class="fval">${Number(g.service_factor).toFixed(2)}</span><span class="fsep">×</span><span class="fval">${g.bonus_percent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(svcBonus)}</span></div>
+          <div class="formula-section-title">2. Премия за услуги <span class="formula-hint">× коэффициент ${Number(g.service_factor).toFixed(2)} · ${bonusPercent}%</span></div>
+          <div class="formula-line"><span class="ftxt">Маржа услуг</span><span class="fsep">×</span><span class="fval">${Number(g.service_factor).toFixed(2)}</span><span class="fsep">×</span><span class="fval">${bonusPercent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(svcBonus)}</span></div>
           <div class="formula-sub">Маржа услуг = сумма столбцов: <b>Услуги, ЦТО, Регулярное сопровождение — ИТС, Консалтинг, Доставка</b></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">3. Премия за товар <span class="formula-hint">${g.bonus_percent}%</span></div>
-          <div class="formula-line"><span class="ftxt">Маржа товара</span><span class="fsep">×</span><span class="fval">${g.bonus_percent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(goodsBonus)}</span></div>
+          <div class="formula-section-title">3. Премия за товар <span class="formula-hint">${bonusPercent}%</span></div>
+          <div class="formula-line"><span class="ftxt">Маржа товара</span><span class="fsep">×</span><span class="fval">${bonusPercent}%</span><span class="fsep">=</span><span class="fresult">${formatMoney(goodsBonus)}</span></div>
           <div class="formula-sub">Маржа товара = сумма столбцов: <b>Торговое оборудование, 1С, Промышленное оборудование</b></div>
         </div>
         <div class="formula-section">
@@ -855,7 +986,7 @@ const App = (() => {
               <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
               <td data-label="Грейд" class="text-muted">${escapeHtml(m.grade_name || "—")} / ${m.base_salary != null ? formatMoney(m.base_salary) : "—"}</td>
               <td data-label="Маржа" class="tnum">${formatMoney((m.record.service_margin || 0) + (m.record.goods_margin || 0))}</td>
-              <td data-label="Себестоимость"><input type="number" class="form-input profit-input" data-uid="${m.user_id}" min="0" step="0.01" value="0" style="text-align:right"></td>
+              <td data-label="Себестоимость"><input type="number" class="form-input number-input profit-input" data-uid="${m.user_id}" min="0" step="0.01" value="0" style="text-align:right"></td>
             </tr>`).join("")}</tbody>
         </table>`;
     } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }

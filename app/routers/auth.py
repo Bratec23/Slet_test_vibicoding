@@ -42,6 +42,11 @@ class PositionBrief(BaseModel):
     name: str
 
 
+class TierBrief(BaseModel):
+    min_pct: float
+    bonus_percent: float
+
+
 class GradeBrief(BaseModel):
     id: str | None = None
     name: str | None = None
@@ -49,6 +54,8 @@ class GradeBrief(BaseModel):
     bonus_percent: float | None = None
     service_factor: float | None = None
     has_plan: bool | None = None
+    plan_margin: float | None = None
+    tiers: list[TierBrief] = []
 
 
 class UserOut(BaseModel):
@@ -84,6 +91,8 @@ def _user_out(user: User) -> dict:
             "bonus_percent": float(grade_obj.bonus_percent),
             "service_factor": float(grade_obj.service_factor),
             "has_plan": bool(grade_obj.has_plan),
+            "plan_margin": (float(grade_obj.plan_margin) if grade_obj.plan_margin is not None else None),
+            "tiers": [{"min_pct": float(t.min_pct), "bonus_percent": float(t.bonus_percent)} for t in grade_obj.tiers] if grade_obj.tiers else [],
         }
     return {
         "id": user.id,
