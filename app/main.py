@@ -6,7 +6,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import settings
 from app.database import init_db
-from app.routers import auth, payroll
+from app.routers import auth, catalog, payroll
 
 
 @asynccontextmanager
@@ -25,6 +25,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(catalog.router)
 app.include_router(auth.router)
 app.include_router(payroll.router)
 

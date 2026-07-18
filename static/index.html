@@ -11,6 +11,9 @@
 </head>
 <body>
 
+<!-- TOAST -->
+<div id="toast-container"></div>
+
 <!-- ============ LOGIN SCREEN ============ -->
 <div id="login-screen" class="screen active">
   <div class="login-card fade-in">
@@ -33,9 +36,23 @@
     </div>
 
     <form id="auth-form" onsubmit="event.preventDefault(); App.submitAuth();">
-      <div id="signup-field" class="form-group" style="display:none">
-        <label class="form-label" for="full_name">ФИО менеджера</label>
-        <input class="form-input" id="full_name" type="text" placeholder="Например: Иванов Алексей" autocomplete="name">
+      <div id="signup-fields" style="display:none">
+        <div class="form-group">
+          <label class="form-label" for="full_name">ФИО менеджера</label>
+          <input class="form-input" id="full_name" type="text" placeholder="Например: Иванов Алексей" autocomplete="name">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="dept">Отдел</label>
+          <select class="form-input" id="dept" onchange="App.onDeptChange()"><option value="">Загрузка…</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="pos">Должность</label>
+          <select class="form-input" id="pos"><option value="">Сначала выберите отдел</option></select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="grade">Грейд</label>
+          <select class="form-input" id="grade"><option value="">Загрузка…</option></select>
+        </div>
       </div>
       <div class="form-group">
         <label class="form-label" for="email">Почта</label>
@@ -67,16 +84,19 @@
         </svg>
         <span class="logo-first">Бит</span><span class="logo-separator">.</span><span class="logo-product">Serves</span>
       </div>
+      <div id="sidebar-dept-badge" class="dept-badge">Отдел: —</div>
     </div>
     <nav class="sidebar-nav">
       <div class="nav-section-label">Микросервисы</div>
-
-      <div class="nav-item active" data-route="payroll" onclick="App.navigate('payroll')">
+      <div class="nav-item active" data-route="menu" onclick="App.navigate('menu')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        Меню микросервисов
+      </div>
+      <div class="nav-item" data-route="payroll" id="nav-payroll" onclick="App.navigate('payroll')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
         Заработная плата
-        <span class="nav-badge">1</span>
+        <span id="payroll-badge" class="nav-badge" style="display:none">1</span>
       </div>
-
       <div class="nav-item disabled" data-route="soon1">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         Календарь проектов
@@ -92,7 +112,6 @@
         Управление заявками
         <span class="nav-tag">скоро</span>
       </div>
-
       <div class="nav-section-label" style="margin-top: var(--space-3);">Система</div>
       <div class="nav-item" data-route="profile" onclick="App.navigate('profile')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -119,18 +138,18 @@
       <div class="page-body">
         <div class="section-header">
           <div class="section-title">Микросервисы</div>
-          <div class="section-desc">Единая среда инструментов менеджера Выберите доступный микросервис</div>
+          <div class="section-desc">Единая среда инструментов менеджера. Выберите доступный микросервис.</div>
         </div>
         <div class="services-grid">
-          <div class="service-card" onclick="App.navigate('payroll')">
+          <div id="svc-payroll" class="service-card" onclick="App.navigate('payroll')">
             <div class="service-icon">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
             </div>
             <div class="service-body">
               <div class="service-title">Заработная плата</div>
-              <div class="service-desc">Расчёт ЗП сотрудников по окладу, премиям, сверхурочным и налогам с сохранением истории расчётов</div>
+              <div class="service-desc">Расчёт ЗП менеджера по марже и грейду с сохранением истории и выгрузкой в Excel</div>
             </div>
-            <div class="service-status active-open">Доступен</div>
+            <div id="svc-payroll-status" class="service-status active-open">Доступен</div>
           </div>
           <div class="service-card disabled">
             <div class="service-icon"><svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div>
@@ -173,72 +192,56 @@
 
       <div class="page-body">
         <div class="section-header">
-          <div class="section-title">Сотрудники и расчёт ЗП</div>
-          <div class="section-desc">Добавьте сотрудников, задайте параметры расчёта — система посчитает начисления, налог и сумму к выплате</div>
+          <div class="section-title">Расчёт заработной платы</div>
+          <div class="section-desc">Введите маржу за период — система рассчитает премию, налог и сумму к выплате по вашему грейду</div>
         </div>
 
-        <div class="payroll-grid">
-          <!-- LEFT: employees -->
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Сотрудники</div>
-              <button class="btn-accent btn-sm" onclick="App.showEmployeeForm()">+ Добавить</button>
-            </div>
-            <div id="employee-list" class="employee-list">Загрузка…</div>
-          </div>
+        <div id="grade-pill" class="grade-info-pill">Загрузка профиля…</div>
 
-          <!-- RIGHT: calc form -->
-          <div class="card">
-            <div class="card-header">
-              <div class="card-title">Расчёт заработной платы</div>
-            </div>
-            <form id="calc-form" onsubmit="event.preventDefault(); App.calculate();">
+        <div class="card payroll-card">
+          <div class="card-header">
+            <div class="card-title">Параметры расчёта</div>
+          </div>
+          <form id="calc-form" onsubmit="event.preventDefault(); App.calculate();">
+            <div class="form-row">
               <div class="form-group">
-                <label class="form-label" for="calc-employee">Сотрудник</label>
-                <select class="form-input" id="calc-employee" required><option value="">Сначала добавьте сотрудника</option></select>
+                <label class="form-label" for="calc-period">Период (ГГГГ-ММ)</label>
+                <input class="form-input" id="calc-period" type="month" required>
               </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="calc-period">Период (ГГГГ-ММ)</label>
-                  <input class="form-input" id="calc-period" type="month" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="calc-worked">Отработано дней</label>
-                  <input class="form-input" id="calc-worked" type="number" min="0" max="31" value="21" required>
-                </div>
+              <div class="form-group">
+                <label class="form-label" for="calc-worked">Отработано дней</label>
+                <input class="form-input" id="calc-worked" type="number" min="0" max="31" value="21" required>
               </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="calc-working">Рабочих дней в месяце</label>
-                  <input class="form-input" id="calc-working" type="number" min="1" max="31" value="22" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="calc-tax">НДФЛ, %</label>
-                  <input class="form-input" id="calc-tax" type="number" min="0" max="100" step="0.1" value="13" required>
-                </div>
+              <div class="form-group">
+                <label class="form-label" for="calc-working">Рабочих дней в месяце</label>
+                <input class="form-input" id="calc-working" type="number" min="1" max="31" value="22" required>
               </div>
-              <div class="margin-header">
-                <label class="form-label" style="margin:0">Маржа за период, ₽</label>
-                <button type="button" class="btn-info" onclick="App.showFormula()" title="Формула расчёта">Формула расчёта</button>
+              <div class="form-group">
+                <label class="form-label" for="calc-tax">НДФЛ, %</label>
+                <input class="form-input" id="calc-tax" type="number" min="0" max="100" step="0.1" value="13" required>
               </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label class="form-label" for="calc-svc-margin">Маржа с услуг</label>
-                  <input class="form-input" id="calc-svc-margin" type="number" min="0" step="0.01" value="0" required>
-                </div>
-                <div class="form-group">
-                  <label class="form-label" for="calc-goods-margin">Маржа с товара</label>
-                  <input class="form-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required>
-                </div>
+            </div>
+            <div class="margin-header">
+              <label class="form-label" style="margin:0">Маржа за период, ₽</label>
+              <button type="button" class="btn-info" onclick="App.showFormula()" title="Формула расчёта">Формула расчёта</button>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label class="form-label" for="calc-svc-margin">Маржа с услуг</label>
+                <input class="form-input" id="calc-svc-margin" type="number" min="0" step="0.01" value="0" required>
               </div>
-              <button class="btn-primary" type="submit">Рассчитать и сохранить</button>
-            </form>
+              <div class="form-group">
+                <label class="form-label" for="calc-goods-margin">Маржа с товара</label>
+                <input class="form-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required>
+              </div>
+            </div>
+            <button class="btn-primary" type="submit">Рассчитать и сохранить</button>
+          </form>
 
-            <div id="calc-result" class="calc-result" style="display:none"></div>
-          </div>
+          <div id="calc-result" class="calc-result" style="display:none"></div>
         </div>
 
-        <div class="card" id="history-card">
+        <div class="card">
           <div class="card-header">
             <div class="card-title">История расчётов</div>
             <button class="btn-ghost btn-sm" onclick="App.loadHistory()">Обновить</button>
@@ -253,16 +256,14 @@
       <div class="topbar">
         <div>
           <div class="topbar-title">Профиль</div>
-          <div class="topbar-sub">Информация об учётной записи</div>
+          <div class="topbar-sub">Информация об учётной записи и настройках оплаты</div>
         </div>
         <div class="topbar-actions">
           <button class="btn-ghost" onclick="App.logout()">Выйти</button>
         </div>
       </div>
       <div class="page-body">
-        <div class="card">
-          <div id="profile-info">Загрузка…</div>
-        </div>
+        <div class="card" id="profile-card">Загрузка…</div>
       </div>
     </div>
   </div>

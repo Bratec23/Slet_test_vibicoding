@@ -4,7 +4,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
-from app.models import Employee, PayrollRecord
+from app.models import PayrollRecord, User
 
 BRAND = "e5006e"
 DARK = "1a1a2e"
@@ -27,13 +27,13 @@ def _money(v: float) -> float:
     return round(float(v or 0), 2)
 
 
-def generate_payroll_xlsx(record: PayrollRecord, employee: Employee) -> bytes:
+def generate_payroll_xlsx(record: PayrollRecord, user: User) -> bytes:
     wb = Workbook()
     ws = wb.active
     ws.title = "Расчёт ЗП"
 
     ws.column_dimensions["A"].width = 34
-    ws.column_dimensions["B"].width = 22
+    ws.column_dimensions["B"].width = 24
 
     ws.merge_cells("A1:B1")
     ws["A1"] = "Бит.Serves — Расчёт заработной платы"
@@ -41,10 +41,15 @@ def generate_payroll_xlsx(record: PayrollRecord, employee: Employee) -> bytes:
     ws["A1"].alignment = Alignment(horizontal="center")
     ws.row_dimensions[1].height = 26
 
+    dept_name = user.department.name if user.department else "—"
+    pos_name = user.position.name if user.position else "—"
+    grade_name = record.grade.name if record.grade else record.grade_id
+
     info_rows = [
-        ("Сотрудник", employee.full_name),
-        ("Должность", employee.position or "—"),
-        ("Грейд", (employee.grade or "—")),
+        ("Получатель", user.full_name or "—"),
+        ("Отдел", dept_name),
+        ("Должность", pos_name),
+        ("Грейд", grade_name),
         ("Период", record.period),
         ("Дата расчёта", record.created_at.strftime("%d.%m.%Y %H:%M") if record.created_at else "—"),
     ]
@@ -75,7 +80,7 @@ def generate_payroll_xlsx(record: PayrollRecord, employee: Employee) -> bytes:
         cell.font = VALUE_FONT
         cell.border = THIN_BORDER
         cell.alignment = Alignment(horizontal="right")
-        if unit:
+        if unit == "₽":
             ws.cell(row=row, column=2).number_format = "#,##0.00"
         row += 1
 
