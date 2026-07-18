@@ -143,6 +143,49 @@ def history(db: Session = Depends(get_db), user: User = Depends(get_current_user
     return [_payroll_out(r) for r in rows]
 
 
+class SummaryOut(BaseModel):
+    period: str
+    record_id: int
+    created_at: str
+    accrued_base: float
+    services_bonus: float
+    goods_bonus: float
+    bonus_total: float
+    gross_pay: float
+    tax_amount: float
+    net_pay: float
+
+
+@router.get("/summary", response_model=List[SummaryOut])
+def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    rows = db.scalars(
+        select(PayrollRecord)
+        .where(PayrollRecord.user_id == user.id)
+        .order_by(PayrollRecord.created_at.desc())
+    ).all()
+    latest_by_period: dict[str, PayrollRecord] = {}
+    for r in rows:
+        if r.period not in latest_by_period:
+            latest_by_period[r.period] = r
+    items = list(latest_by_period.values())
+    items.sort(key=lambda x: x.period)
+    return [
+        SummaryOut(
+            period=r.period,
+            record_id=r.id,
+            created_at=r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else "",
+            accrued_base=float(r.accrued_base),
+            services_bonus=float(r.services_bonus),
+            goods_bonus=float(r.goods_bonus),
+            bonus_total=float(r.bonus_total),
+            gross_pay=float(r.gross_pay),
+            tax_amount=float(r.tax_amount),
+            net_pay=float(r.net_pay),
+        )
+        for r in items
+    ]
+
+
 @router.get("/records/{record_id}/export")
 def export_record(record_id: int, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     record = db.get(PayrollRecord, record_id)

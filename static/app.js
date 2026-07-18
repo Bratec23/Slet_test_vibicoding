@@ -6,6 +6,8 @@ const App = (() => {
   let gradesCache = [];
   let departmentsCache = [];
   let positionsCache = [];
+  let summaryCache = [];
+  let currentMetric = "net_pay";
 
   const $ = (sel) => document.querySelector(sel);
   const $$ = (sel) => document.querySelectorAll(sel);
@@ -131,6 +133,7 @@ const App = (() => {
     const deptCode = user.department ? user.department.code : "";
     if (deptCode === "dev_art") {
       $("#nav-payroll").classList.remove("disabled");
+      $("#nav-payroll-history").classList.remove("disabled");
       $("#payroll-badge").style.display = "inline-block";
       $("#svc-payroll").classList.remove("disabled");
       $("#svc-payroll-status").textContent = "Доступен";
@@ -138,6 +141,8 @@ const App = (() => {
     } else {
       $("#nav-payroll").classList.add("disabled");
       $("#nav-payroll").onclick = () => toast("Отдел Сопровождение — микросервис в разработке", "info");
+      $("#nav-payroll-history").classList.add("disabled");
+      $("#nav-payroll-history").onclick = () => toast("Отдел Сопровождение — микросервис в разработке", "info");
       $("#payroll-badge").style.display = "none";
       $("#svc-payroll").classList.add("disabled");
       $("#svc-payroll-status").textContent = "Скоро";
@@ -157,6 +162,7 @@ const App = (() => {
     const page = $(`#page-${route}`);
     if (page) page.style.display = "block";
     if (route === "payroll") { loadGradePill(); loadHistory(); }
+    if (route === "payroll-history") { loadSummary(); }
     if (route === "profile") { loadProfile(); }
   }
 
@@ -352,6 +358,128 @@ const App = (() => {
     } catch (e) { toast(e.message, "error"); }
   }
 
+  async function loadSummary() {
+    const chartArea = $("#chart-area");
+    const tableWrap = $("#summary-table");
+    try {
+      const rows = await api("/api/payroll/summary");
+      summaryCache = rows;
+      if (!rows.length) {
+        chartArea.innerHTML = '<div class="empty">Нет данных для графика. Сделайте первый расчёт во вкладке «Заработная плата».</div>';
+        tableWrap.innerHTML = '<div class="empty">Нет данных</div>';
+        return;
+      }
+      renderChart(rows, currentMetric);
+      renderSummaryTable(rows);
+    } catch (e) {
+      chartArea.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+      tableWrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function switchMetric(metric) {
+    currentMetric = metric;
+    $$(".chart-tab").forEach(t => t.classList.toggle("active", t.dataset.metric === metric));
+    if (summaryCache.length) renderChart(summaryCache, metric);
+  }
+
+  function renderChart(rows, metric) {
+    const area = $("#chart-area");
+    const labels = { net_pay: "К выплате", bonus_total: "Премия итого" };
+    const values = rows.map(r => Number(r[metric]) || 0);
+    const maxV = Math.max(1, ...values);
+    const W = Math.max(360, Math.min(900, rows.length * 90 + 60));
+    const H = 280;
+    const padL = 48, padR = 16, padT = 16, padB = 48;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const barGap = 14;
+    const barW = Math.max(18, Math.min(60, (innerW - barGap * (rows.length - 1)) / Math.max(1, rows.length)));
+    const totalBarsW = barW * rows.length + barGap * (rows.length - 1);
+    const stepX = totalBarsW / rows.length;
+    const yScale = (v) => padT + innerH - (v / maxV) * innerH;
+    const niceMax = Math.ceil(maxV / 1000) * 1000;
+    const ticks = 4;
+    let grid = "";
+    for (let i = 0; i <= ticks; i++) {
+      const v = (niceMax / ticks) * i;
+      const y = padT + innerH - (v / niceMax) * innerH;
+      grid += `<line x1="${padL}" y1="${y}" x2="${W - padR}" y2="${y}" stroke="var(--color-divider)" stroke-width="1" stroke-dasharray="3 3"/>`;
+      grid += `<text x="${padL - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="var(--color-text-faint)" font-family="JetBrains Mono">${shortMoney(v)}</text>`;
+    }
+
+    let bars = "";
+    rows.forEach((r, i) => {
+      const v = Number(r[metric]) || 0;
+      const x = padL + i * stepX + (stepX - barW) / 2;
+      const y = yScale(v);
+      const bh = padT + innerH - y;
+      bars += `<g class="bar-group" data-idx="${i}">
+        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(1, bh)}" rx="4" fill="var(--color-primary)" class="bar-rect"/>
+        <text x="${x + barW / 2}" y="${y - 6}" text-anchor="middle" font-size="10" fill="var(--color-text)" font-family="JetBrains Mono" font-weight="600">${shortMoney(v)}</text>
+        <text x="${x + barW / 2}" y="${padT + innerH + 18}" text-anchor="middle" font-size="10" fill="var(--color-text-muted)">${escapeHtml(r.period)}</text>
+      </g>`;
+    });
+
+    area.innerHTML = `
+      <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart-svg" id="chart-svg">
+        ${grid}
+        ${bars}
+      </svg>
+      <div id="chart-tooltip" class="chart-tooltip" style="display:none"></div>`;
+
+    const tooltip = $("#chart-tooltip");
+    $$(".bar-group").forEach(g => {
+      g.addEventListener("mousemove", (e) => {
+        const idx = parseInt(g.dataset.idx);
+        const r = rows[idx];
+        tooltip.innerHTML = `
+          <div class="tt-period">${escapeHtml(r.period)}</div>
+          <div class="tt-row"><span>Оклад</span><b>${formatMoney(r.accrued_base)}</b></div>
+          <div class="tt-row"><span>Премия услуг</span><b>${formatMoney(r.services_bonus)}</b></div>
+          <div class="tt-row"><span>Премия товара</span><b>${formatMoney(r.goods_bonus)}</b></div>
+          <div class="tt-row"><span>Премия итого</span><b>${formatMoney(r.bonus_total)}</b></div>
+          <div class="tt-row"><span>Gross</span><b>${formatMoney(r.gross_pay)}</b></div>
+          <div class="tt-row"><span>НДФЛ</span><b>-${formatMoney(r.tax_amount)}</b></div>
+          <div class="tt-row tt-net"><span>К выплате</span><b>${formatMoney(r.net_pay)}</b></div>
+          <div class="tt-date">Расчёт от ${escapeHtml(r.created_at)}</div>`;
+        tooltip.style.display = "block";
+        const rect = area.getBoundingClientRect();
+        tooltip.style.left = Math.min(e.clientX - rect.left + 10, rect.width - 240) + "px";
+        tooltip.style.top = Math.max(0, e.clientY - rect.top - 150) + "px";
+      });
+      g.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+    });
+  }
+
+  function renderSummaryTable(rows) {
+    const wrap = $("#summary-table");
+    if (!rows.length) { wrap.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    wrap.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Период</th><th>Оклад</th><th>Премия услуг</th><th>Премия товара</th><th>Премия итого</th><th>Gross</th><th>НДФЛ</th><th>К выплате</th><th>Дата расчёта</th><th></th></tr></thead>
+        <tbody>${rows.map(r => `<tr>
+          <td data-label="Период"><b>${escapeHtml(r.period)}</b></td>
+          <td data-label="Оклад" class="tnum">${formatMoney(r.accrued_base)}</td>
+          <td data-label="Премия услуг" class="tnum">${formatMoney(r.services_bonus)}</td>
+          <td data-label="Премия товара" class="tnum">${formatMoney(r.goods_bonus)}</td>
+          <td data-label="Премия итого" class="tnum">${formatMoney(r.bonus_total)}</td>
+          <td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td>
+          <td data-label="НДФЛ" class="tnum">-${formatMoney(r.tax_amount)}</td>
+          <td data-label="К выплате" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
+          <td data-label="Дата расчёта" class="text-muted">${escapeHtml(r.created_at)}</td>
+          <td data-label="" class="row-action"><button class="btn-ghost btn-sm" onclick="App.exportRecord(${r.record_id})" title="Скачать Excel"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></button></td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+  }
+
+  function shortMoney(v) {
+    const n = Number(v || 0);
+    if (Math.abs(n) >= 1e6) return (n / 1e6).toFixed(1).replace(/\.0$/, "") + "М";
+    if (Math.abs(n) >= 1e3) return (n / 1e3).toFixed(0) + "к";
+    return String(Math.round(n));
+  }
+
   function escapeHtml(s) {
     return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   }
@@ -382,7 +510,7 @@ const App = (() => {
   return {
     init, switchAuthTab, submitAuth, logout, navigate, onDeptChange,
     loadHistory, loadProfile, saveProfile, calculate, toggleTheme,
-    showFormula, exportRecord,
+    showFormula, exportRecord, loadSummary, switchMetric,
   };
 })();
 

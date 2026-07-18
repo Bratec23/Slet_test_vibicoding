@@ -14,7 +14,7 @@ def seed(db: Session) -> None:
         dev = db.query(Department).filter(Department.code == "dev_art").first()
         mnt = db.query(Department).filter(Department.code == "maintenance").first()
         if dev:
-            db.add(Position(name="Менеджер на испытательном сроке", department_id=dev.id, is_active=True))
+            db.add(Position(name="Менеджер отдела развитие АРТ", department_id=dev.id, is_active=True))
         if mnt:
             db.add(Position(name="Специалист сопровождения", department_id=mnt.id, is_active=True))
         db.flush()
@@ -22,7 +22,7 @@ def seed(db: Session) -> None:
     if not db.query(Grade).first():
         db.add(Grade(
             id="trainee",
-            name="Менеджер на испытательном сроке",
+            name="Испытательный срок",
             base_salary=45000,
             bonus_percent=4.0,
             service_factor=0.5,

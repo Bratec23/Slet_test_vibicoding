@@ -97,6 +97,10 @@
         Заработная плата
         <span id="payroll-badge" class="nav-badge" style="display:none">1</span>
       </div>
+      <div class="nav-item disabled" data-route="payroll-history" id="nav-payroll-history" onclick="App.navigate('payroll-history')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        История ЗП
+      </div>
       <div class="nav-item disabled" data-route="soon1">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         Календарь проектов
@@ -247,6 +251,49 @@
             <button class="btn-ghost btn-sm" onclick="App.loadHistory()">Обновить</button>
           </div>
           <div id="payroll-history" class="table-wrap">Нет расчётов</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- PAYROLL HISTORY PAGE -->
+    <div id="page-payroll-history" class="page" style="display:none">
+      <div class="topbar">
+        <div>
+          <div class="topbar-title">История заработной платы</div>
+          <div class="topbar-sub">Динамика начислений по месяцам — выберите метрику для графика</div>
+        </div>
+        <div class="topbar-actions">
+          <button class="btn-ghost" onclick="App.navigate('menu')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7"/><path d="M5 9v11a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V9"/></svg>
+            К меню
+          </button>
+        </div>
+      </div>
+
+      <div class="page-body">
+        <div class="section-header">
+          <div class="section-title">Динамика по месяцам</div>
+          <div class="section-desc">Если в одном периоде было несколько расчётов — берётся последний по дате</div>
+        </div>
+
+        <div class="card">
+          <div class="chart-toolbar">
+            <div class="chart-tabs">
+              <button class="chart-tab active" data-metric="net_pay" onclick="App.switchMetric('net_pay')">К выплате</button>
+              <button class="chart-tab" data-metric="bonus_total" onclick="App.switchMetric('bonus_total')">Премия</button>
+            </div>
+          </div>
+          <div id="chart-area" class="chart-area">
+            <div class="empty">Нет данных для графика. Сделайте первый расчёт во вкладке «Заработная плата».</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Сводная таблица по месяцам</div>
+            <button class="btn-ghost btn-sm" onclick="App.loadSummary()">Обновить</button>
+          </div>
+          <div id="summary-table" class="table-wrap">Нет данных</div>
         </div>
       </div>
     </div>
