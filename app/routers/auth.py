@@ -22,7 +22,7 @@ class RegisterRequest(BaseModel):
     full_name: str = Field(default="", max_length=255)
     department_id: int
     position_id: int
-    grade_id: str
+    grade_id: Optional[str] = None
     role: Literal["manager", "head"] = "manager"
 
 
@@ -43,12 +43,12 @@ class PositionBrief(BaseModel):
 
 
 class GradeBrief(BaseModel):
-    id: str
-    name: str
-    base_salary: float
-    bonus_percent: float
-    service_factor: float
-    has_plan: bool
+    id: str | None = None
+    name: str | None = None
+    base_salary: float | None = None
+    bonus_percent: float | None = None
+    service_factor: float | None = None
+    has_plan: bool | None = None
 
 
 class UserOut(BaseModel):
@@ -58,7 +58,7 @@ class UserOut(BaseModel):
     role: str
     department: DepartmentBrief
     position: PositionBrief
-    grade: GradeBrief
+    grade: Optional[GradeBrief] = None
 
 
 class UpdateMeRequest(BaseModel):
@@ -74,6 +74,17 @@ class TokenOut(BaseModel):
 
 
 def _user_out(user: User) -> dict:
+    grade_obj = user.grade
+    grade_dict = None
+    if grade_obj:
+        grade_dict = {
+            "id": grade_obj.id,
+            "name": grade_obj.name,
+            "base_salary": float(grade_obj.base_salary),
+            "bonus_percent": float(grade_obj.bonus_percent),
+            "service_factor": float(grade_obj.service_factor),
+            "has_plan": bool(grade_obj.has_plan),
+        }
     return {
         "id": user.id,
         "email": user.email,
@@ -88,14 +99,7 @@ def _user_out(user: User) -> dict:
             "id": user.position.id,
             "name": user.position.name,
         },
-        "grade": {
-            "id": user.grade.id,
-            "name": user.grade.name,
-            "base_salary": float(user.grade.base_salary),
-            "bonus_percent": float(user.grade.bonus_percent),
-            "service_factor": float(user.grade.service_factor),
-            "has_plan": bool(user.grade.has_plan),
-        },
+        "grade": grade_dict,
     }
 
 
@@ -133,16 +137,19 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     if not pos or not pos.is_active or pos.department_id != dept.id:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Должность не соответствует отделу")
 
-    grade = db.get(Grade, payload.grade_id)
-    if not grade or not grade.is_active:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден")
-
     if payload.role == "head":
         if payload.password != settings.HEAD_REGISTER_PASSWORD:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Для регистрации руководителя введите служебный пароль (обратитесь к администратору)",
+                detail="Неверный пароль",
             )
+        grade = None
+    else:
+        if not payload.grade_id:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд обязателен для менеджера")
+        grade = db.get(Grade, payload.grade_id)
+        if not grade or not grade.is_active:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден")
 
     user = User(
         email=payload.email.lower(),
@@ -151,7 +158,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         password_hash=hash_password(payload.password),
         department_id=dept.id,
         position_id=pos.id,
-        grade_id=grade.id,
+        grade_id=grade.id if grade else None,
     )
     db.add(user)
     db.commit()

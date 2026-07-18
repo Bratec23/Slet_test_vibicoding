@@ -61,7 +61,7 @@ class User(Base):
 
     department_id: Mapped[int] = mapped_column(Integer, ForeignKey("departments.id"), index=True, nullable=False)
     position_id: Mapped[int] = mapped_column(Integer, ForeignKey("positions.id"), nullable=False)
-    grade_id: Mapped[str] = mapped_column(String(50), ForeignKey("grades.id"), nullable=False)
+    grade_id: Mapped[str | None] = mapped_column(String(50), ForeignKey("grades.id"), nullable=True, default=None)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 

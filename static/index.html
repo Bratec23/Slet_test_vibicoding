@@ -55,7 +55,7 @@
           <label class="form-label" for="pos">Должность</label>
           <select class="form-input" id="pos"><option value="">Сначала выберите отдел</option></select>
         </div>
-        <div class="form-group">
+        <div class="form-group" id="grade-group">
           <label class="form-label" for="grade">Грейд</label>
           <select class="form-input" id="grade"><option value="">Загрузка…</option></select>
         </div>
@@ -68,7 +68,6 @@
         <label class="form-label" for="password">Пароль</label>
         <input class="form-input" id="password" type="password" placeholder="Минимум 6 символов" autocomplete="current-password" required minlength="6">
       </div>
-      <div id="head-hint" class="auth-hint" style="display:none">Руководитель регистрируется со служебным паролем 123456789</div>
       <div id="auth-error" class="auth-error" style="display:none"></div>
       <button class="btn-primary" type="submit" id="auth-submit">Войти в систему</button>
     </form>
@@ -267,6 +266,10 @@
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
         Дашборд отдела
       </div>
+      <div class="nav-item" data-route="head-analytics" onclick="App.navigate('head-analytics')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+        Аналитика отдела
+      </div>
       <div class="nav-item" data-route="head-profitability" onclick="App.navigate('head-profitability')">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
         Рентабельность
@@ -298,16 +301,55 @@
       <div class="topbar">
         <div><div class="topbar-title">Дашборд отдела</div><div class="topbar-sub">Менеджеры вашего отдела и их расчёты ЗП</div></div>
         <div class="topbar-actions">
-          <input class="form-input period-input" id="head-team-period" type="month"><button class="btn-accent btn-sm" onclick="App.loadTeam()">Загрузить</button>
+          <input class="form-input period-input" id="head-team-period" type="month"><button class="btn-accent btn-sm" onclick="App.loadDashboard()">Загрузить</button>
           <button class="btn-ghost" onclick="App.logout()"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>Выйти</button>
         </div>
       </div>
       <div class="page-body">
-        <div class="section-header"><div class="section-title">Команда отдела</div><div class="section-desc">Укажите период, чтобы увидеть последние расчёты менеджеров</div></div>
-        <div id="team-summary" class="kpis-row"></div>
+        <div id="dashboard-kpis" class="kpis-row"></div>
+        <div class="charts-grid">
+          <div class="card"><div class="card-header"><div class="card-title">Маржа по сотрудникам</div></div><div id="chart-margin" class="chart-area"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">ФОТ по сотрудникам</div></div><div id="chart-gross" class="chart-area"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">Прибыль по сотрудникам</div></div><div id="chart-profit" class="chart-area"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">Рентабельность %</div></div><div id="chart-profitability" class="chart-area"></div></div>
+        </div>
+        <div class="blocks-grid">
+          <div class="card"><div class="card-header"><div class="card-title">Маржа и премии</div></div><div id="block-margin" class="table-wrap"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">ЗП начисления</div></div><div id="block-payroll" class="table-wrap"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">Расходы по сотруднику</div></div><div id="block-costs" class="table-wrap"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">Рентабельность и ФОТ/Маржа</div></div><div id="block-profit" class="table-wrap"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- HEAD ANALYTICS -->
+    <div id="page-head-analytics" class="page" style="display:none">
+      <div class="topbar">
+        <div><div class="topbar-title">Аналитика отдела</div><div class="topbar-sub">Динамика по месяцам, тепловая карта, сравнение роста</div></div>
+        <div class="topbar-actions">
+          <span class="range-label">С</span><input class="form-input period-input" id="head-from" type="month">
+          <span class="range-label">По</span><input class="form-input period-input" id="head-to" type="month">
+          <button class="btn-accent btn-sm" onclick="App.loadAnalytics()">Загрузить</button>
+          <button class="btn-ghost" onclick="App.logout()">Выйти</button>
+        </div>
+      </div>
+      <div class="page-body">
+        <div class="section-header"><div class="section-title">Динамика отдела</div><div class="section-desc">Выберите диапазон месяцев</div></div>
+        <div class="charts-grid">
+          <div class="card"><div class="card-header"><div class="card-title">Маржа по месяцам</div></div><div id="hst-margin" class="chart-area"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">ФОТ по месяцам</div></div><div id="hst-gross" class="chart-area"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">Прибыль по месяцам</div></div><div id="hst-profit" class="chart-area"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">Рентабельность %</div></div><div id="hst-rent" class="chart-area"></div></div>
+        </div>
         <div class="card">
-          <div class="card-header"><div class="card-title">Менеджеры отдела</div></div>
-          <div id="team-table" class="table-wrap">Выберите период и нажмите «Загрузить»</div>
+          <div class="card-header"><div class="card-title">Тепловая карта: месяцы × менеджеры (маржа)</div></div>
+          <div id="heat-map" class="heat-wrap"></div>
+        </div>
+        <div class="card">
+          <div class="card-header"><div class="card-title">Водопад: изменение маржи за период vs предыдущий</div>
+            <input class="form-input period-input" id="waterfall-period" type="month">
+            <button class="btn-accent btn-sm" onclick="App.loadWaterfall()">Показать</button></div>
+          <div id="waterfall" class="chart-area"></div>
         </div>
       </div>
     </div>
@@ -324,7 +366,7 @@
       <div class="page-body">
         <div class="section-header">
           <div class="section-title">Рентабельность по сотрудникам</div>
-          <div class="section-desc">Маржа берётся из расчёта ЗП менеджера за выбранный период. Расходы: ФОТ + НДФЛ + взносы (7.6% IT) + НДС (5% с маржи) + офис (45 000 ₽/сотр.)</div>
+          <div class="section-desc">Маржа берётся из расчёта ЗП менеджера за выбранный период</div>
         </div>
         <div class="card">
           <div id="profit-form" class="table-wrap">Выберите период и нажмите «Загрузить менеджеров»</div>
@@ -346,16 +388,20 @@
         </div>
       </div>
       <div class="page-body">
-        <div class="section-header"><div class="section-title">Расходы по сотрудникам</div><div class="section-desc">Статьи: ФОТ, НДФЛ, страховые взносы 7.6%, НДС 5% от маржи, офис 45 000 ₽ на сотрудника</div></div>
+        <div class="section-header">
+          <div class="section-title">Расходы по сотрудникам</div>
+          <div class="section-desc">Статьи: ФОТ, НДФЛ, взносы 7.6%, НДС 5% от маржи, офис 45 000 ₽ на сотрудника</div>
+          <div style="margin-top:var(--space-3)"><button class="btn-info" onclick="App.showCostFormulas()">Формулы расходов</button></div>
+        </div>
         <div id="costs-totals" class="kpis-row"></div>
-        <div class="card">
-          <div class="card-header"><div class="card-title">Детализация по сотрудникам</div></div>
-          <div id="costs-table" class="table-wrap">Выберите период и нажмите «Загрузить»</div>
+        <div class="blocks-grid">
+          <div class="card"><div class="card-header"><div class="card-title">ЗП-расходы</div></div><div id="costs-labor" class="table-wrap"></div></div>
+          <div class="card"><div class="card-header"><div class="card-title">Операционные расходы</div></div><div id="costs-operating" class="table-wrap"></div></div>
         </div>
       </div>
     </div>
 
-    <!-- PROFILE (REUSED) -->
+    <!-- PROFILE -->
     <div id="page-profile-head" class="page" style="display:none">
       <div class="topbar">
         <div><div class="topbar-title">Профиль руководителя</div><div class="topbar-sub">Информация об учётной записи</div></div>

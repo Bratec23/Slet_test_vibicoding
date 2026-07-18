@@ -58,9 +58,10 @@ const App = (() => {
 
   function onRoleChange() {
     const role = document.querySelector('input[name="role"]:checked').value;
-    $("#head-hint").style.display = role === "head" ? "block" : "none";
+    const gradeGroup = $("#grade-group");
+    if (gradeGroup) gradeGroup.style.display = role === "manager" ? "block" : "none";
     const pw = $("#password");
-    if (role === "head") pw.placeholder = "Служебный пароль 123456789"; else pw.placeholder = "Минимум 6 символов";
+    pw.placeholder = "Введите пароль";
   }
 
   async function loadCatalogForSignup() {
@@ -103,10 +104,11 @@ const App = (() => {
         const full_name = $("#full_name").value.trim();
         const deptId = parseInt($("#dept").value);
         const posId = parseInt($("#pos").value);
-        const gradeId = $("#grade").value;
+        const gradeId = $("#grade").value || null;
         const role = document.querySelector('input[name="role"]:checked').value;
         if (!full_name) { showAuthError("Введите ФИО"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
-        if (!deptId || !posId || !gradeId) { showAuthError("Выберите отдел, должность и грейд"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
+        if (!deptId || !posId) { showAuthError("Выберите отдел и должность"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
+        if (role === "manager" && !gradeId) { showAuthError("Выберите грейд"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
         const data = await api("/api/auth/register", { method: "POST", auth: false, body: { email, password, full_name, department_id: deptId, position_id: posId, grade_id: gradeId, role } });
         setSession(data.access_token, data.user);
         enterApp();
@@ -188,7 +190,8 @@ const App = (() => {
     if (page) page.style.display = "block";
     if (route === "payroll") { loadGradePill(); loadHistory(); }
     if (route === "profile") { loadProfile(); }
-    if (route === "head-dashboard") { if (!historyOpen) loadTeam(); }
+    if (route === "head-dashboard") { loadDashboard(); }
+    if (route === "head-analytics") { loadAnalytics(); }
   }
 
   function loadGradePill() {
@@ -491,52 +494,366 @@ const App = (() => {
     } catch (e) { toast(e.message, "error"); }
   }
 
-  async function loadTeam() {
+  const fotStatusClass = { normal: "kpi-fot-status-normal", warning: "kpi-fot-status-warning", critical: "kpi-fot-status-critical", none: "kpi-fot-status-none" };
+  const fotCellClass = { normal: "cell-fot-status-normal", warning: "cell-fot-status-warning", critical: "cell-fot-status-critical" };
+  const fotLabel = { normal: "Норма", warning: "Внимание", critical: "Критично", none: "Нет данных" };
+
+  async function loadDashboard() {
     const period = $("#head-team-period").value || new Date().toISOString().slice(0, 7);
-    const summaryEl = $("#team-summary");
-    const tableEl = $("#team-table");
+    const kpisEl = $("#dashboard-kpis");
     try {
-      const data = await api(`/api/head/team?period=${encodeURIComponent(period)}`);
-      summaryEl.innerHTML = `
-        <div class="kpi"><div class="kpi-val">${data.total_managers}</div><div class="kpi-lbl">менеджеров</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(data.total_margin)}</div><div class="kpi-lbl">маржа за период</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(data.total_gross)}</div><div class="kpi-lbl">gross</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(data.total_net)}</div><div class="kpi-lbl">к выплате</div></div>`;
-      if (!data.members.length) { tableEl.innerHTML = `<div class="empty">В отделе нет менеджеров</div>`; return; }
-      tableEl.innerHTML = `
-        <table class="data-table">
-          <thead><tr><th>Менеджер</th><th>Должность</th><th>Грейд</th><th>Маржа усл.</th><th>Маржа товара</th><th>Премия</th><th>Gross</th><th>К выплате</th><th>Дата расчёта</th></tr></thead>
-          <tbody>${data.members.map(m => {
-            const r = m.record;
-            return `<tr>
-              <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
-              <td data-label="Должность" class="text-muted">${escapeHtml(m.position_name)}</td>
-              <td data-label="Грейд" class="text-muted">${escapeHtml(m.grade_name)}</td>
-              ${r
-                ? `<td data-label="Маржа усл." class="tnum">${formatMoney(r.service_margin)}</td><td data-label="Маржа товара" class="tnum">${formatMoney(r.goods_margin)}</td><td data-label="Премия" class="tnum">${formatMoney(r.bonus_total)}</td><td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td><td data-label="К выплате" class="tnum net-cell">${formatMoney(r.net_pay)}</td><td data-label="Дата" class="text-muted">${escapeHtml(r.created_at)}</td>`
-                : `<td data-label="Маржа усл." colspan="6" class="text-muted" style="text-align:center">Нет расчёта за ${escapeHtml(period)}</td>`
-              }
-            </tr>`;
-          }).join("")}</tbody>
-        </table>`;
-    } catch (e) { tableEl.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+      const data = await api(`/api/head/dashboard?period=${encodeURIComponent(period)}`);
+      const k = data.kpis;
+      const fotSt = k.fot_status || "none";
+      kpisEl.innerHTML = `
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(k.margin)}</div><div class="kpi-lbl">маржа</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(k.gross)}</div><div class="kpi-lbl">ФОТ (gross)</div></div>
+        <div class="kpi ${k.profit >= 0 ? "kpi-green" : "kpi-red"}"><div class="kpi-val">${formatMoneyShort(k.profit)}</div><div class="kpi-lbl">прибыль</div></div>
+        <div class="kpi"><div class="kpi-val">${k.profitability_pct == null ? "—" : k.profitability_pct + "%"}</div><div class="kpi-lbl">рентабельность</div></div>
+        <div class="kpi"><div class="kpi-val">${k.fot_margin_pct == null ? "—" : k.fot_margin_pct + "%"}</div><div class="kpi-lbl">ФОТ / Маржа</div>
+          <div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div>
+          <div class="fot-norm-note">Норма ≤20% | Критично >25%</div></div>
+        <div class="kpi"><div class="kpi-val">${k.managers_with_data}/${k.managers_total}</div><div class="kpi-lbl">с расчётом</div></div>`;
+
+      // 4 графика по сотрудникам
+      const activeMetrics = data.metrics.filter(m => m.has_record);
+      if (!activeMetrics.length) {
+        ["chart-margin","chart-gross","chart-profit","chart-profitability"].forEach(id => $(`#${id}`).innerHTML = '<div class="empty">Нет данных</div>');
+      } else {
+        renderBarChartH("#chart-margin", activeMetrics, "margin", "Маржа");
+        renderBarChartH("#chart-gross", activeMetrics, "gross", "ФОТ");
+        renderBarChartH("#chart-profit", activeMetrics, "profit", "Прибыль");
+        renderBarChartH("#chart-profitability", activeMetrics, "profitability_pct", "Рентаб.%");
+      }
+
+      // 4 блока таблиц
+      renderBlockMargin(data.members);
+      renderBlockPayroll(data.members);
+      renderBlockCosts(data.metrics);
+      renderBlockProfit(data.metrics);
+    } catch (e) {
+      kpisEl.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function renderBarChartH(selector, rows, valueKey, label) {
+    const area = $(selector);
+    if (!area) return;
+    const values = rows.map(r => Number(r[valueKey]) || 0);
+    if (!values.length || values.every(v => v === 0)) { area.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    const maxV = Math.max(1, ...values.map(Math.abs));
+    const minV = Math.min(0, ...values);
+    const W = Math.max(320, Math.min(460, rows.length * 60 + 50));
+    const H = 240;
+    const padL = 8, padR = 8, padT = 18, padB = 50;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const barW = Math.max(16, Math.min(46, (innerW - 8 * (rows.length - 1)) / rows.length));
+    const gap = (innerW - barW * rows.length) / Math.max(1, rows.length - 1 || 1);
+    const scaleX = innerW / rows.length;
+    const zeroY = padT + innerH - (-minV) / (maxV - minV) * innerH;
+    const yScale = (v) => padT + innerH - ((v - minV) / (maxV - minV || 1)) * innerH;
+    const niceMax = Math.ceil(maxV / 1000) * 1000 || 1;
+    let bars = "";
+    rows.forEach((r, i) => {
+      const v = Number(r[valueKey]) || 0;
+      const x = padL + i * (scaleX) + (scaleX - barW) / 2;
+      const y = v >= 0 ? yScale(v) : zeroY;
+      const bh = Math.max(1, Math.abs(zeroY - yScale(v)));
+      const color = (valueKey === "profit" || valueKey === "profitability_pct") ? (v >= 0 ? "var(--color-success)" : "var(--color-error)") : "#e5006e";
+      const valTxt = valueKey === "profitability_pct" ? (v == null ? "—" : v + "%") : shortMoney(v);
+      bars += `<g class="bar-group" data-idx="${i}">
+        <rect x="${x}" y="${y}" width="${barW}" height="${bh}" rx="3" fill="${color}" class="bar-rect"/>
+        <text x="${x + barW / 2}" y="${(v >= 0 ? y : yScale(v)) - 6}" text-anchor="middle" font-size="10" fill="var(--color-text)" font-family="JetBrains Mono" font-weight="600">${valTxt}</text>
+        <text x="${x + barW / 2}" y="${padT + innerH + 14}" text-anchor="middle" font-size="9" fill="var(--color-text-muted)">${escapeHtml(shortName(r.full_name))}</text>
+      </g>`;
+    });
+    area.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart-svg">${bars}</svg><div id="tt-${selector.slice(1)}" class="chart-tooltip" style="display:none"></div>`;
+    const tooltip = $(`#tt-${selector.slice(1)}`);
+    area.querySelectorAll(".bar-group").forEach(g => {
+      g.addEventListener("mousemove", (e) => {
+        const idx = parseInt(g.dataset.idx);
+        const r = rows[idx];
+        tooltip.innerHTML = `<div class="tt-period">${escapeHtml(r.full_name)}</div>
+          <div class="tt-row"><span>${label}</span><b>${valueKey === "profitability_pct" ? (r[valueKey] == null ? "—" : r[valueKey] + "%") : formatMoney(r[valueKey])}</b></div>`;
+        tooltip.style.display = "block";
+        const rect = area.getBoundingClientRect();
+        tooltip.style.left = Math.min(e.clientX - rect.left + 10, rect.width - 220) + "px";
+        tooltip.style.top = Math.max(0, e.clientY - rect.top - 100) + "px";
+      });
+      g.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+    });
+  }
+
+  function shortName(full) {
+    if (!full) return "—";
+    const parts = full.trim().split(/\s+/);
+    if (parts.length === 1) return parts[0];
+    return parts[0] + " " + (parts[1] || "").slice(0, 1) + ".";
+  }
+
+  function renderBlockMargin(members) {
+    const el = $("#block-margin");
+    if (!el) return;
+    el.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Менеджер</th><th>Маржа услуг</th><th>Маржа товара</th><th>Премия</th></tr></thead>
+        <tbody>${members.map(m => `<tr>
+          <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
+          ${m.record
+            ? `<td data-label="Маржа услуг" class="tnum">${formatMoney(m.record.service_margin)}</td><td data-label="Маржа товара" class="tnum">${formatMoney(m.record.goods_margin)}</td><td data-label="Премия" class="tnum">${formatMoney(m.record.bonus_total)}</td>`
+            : `<td colspan="3" class="text-muted" style="text-align:center">Нет расчёта</td>`}
+        </tr>`).join("")}</tbody>
+      </table>`;
+  }
+
+  function renderBlockPayroll(members) {
+    const el = $("#block-payroll");
+    if (!el) return;
+    el.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Менеджер</th><th>Gross</th><th>НДФЛ</th><th>К выплате</th></tr></thead>
+        <tbody>${members.map(m => `<tr>
+          <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
+          ${m.record
+            ? `<td data-label="Gross" class="tnum">${formatMoney(m.record.gross_pay)}</td><td data-label="НДФЛ" class="tnum">-${formatMoney(m.record.tax_amount)}</td><td data-label="К выплате" class="tnum net-cell">${formatMoney(m.record.net_pay)}</td>`
+            : `<td colspan="3" class="text-muted" style="text-align:center">Нет расчёта</td>`}
+        </tr>`).join("")}</tbody>
+      </table>`;
+  }
+
+  function renderBlockCosts(metrics) {
+    const el = $("#block-costs");
+    if (!el) return;
+    el.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Менеджер</th><th>ФОТ</th><th>Взносы</th><th>НДС</th><th>Офис</th></tr></thead>
+        <tbody>${metrics.map(m => `<tr>
+          <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
+          ${m.has_record
+            ? `<td data-label="ФОТ" class="tnum">${formatMoney(m.gross)}</td><td data-label="Взносы 7.6%" class="tnum">${formatMoney(m.insurance)}</td><td data-label="НДС 5%" class="tnum">${formatMoney(m.vat)}</td><td data-label="Офис" class="tnum">${formatMoney(m.office)}</td>`
+            : `<td colspan="4" class="text-muted" style="text-align:center">Нет расчёта</td>`}
+        </tr>`).join("")}</tbody>
+      </table>`;
+  }
+
+  function renderBlockProfit(metrics) {
+    const el = $("#block-profit");
+    if (!el) return;
+    el.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>Менеджер</th><th>Маржа</th><th>Прибыль</th><th>Рентаб.</th><th>ФОТ/Маржа</th></tr></thead>
+        <tbody>${metrics.map(m => {
+          const fotSt = m.fot_status || "none";
+          return `<tr>
+            <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
+            ${m.has_record
+              ? `<td data-label="Маржа" class="tnum">${formatMoney(m.margin)}</td><td data-label="Прибыль" class="tnum ${m.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(m.profit)}</td><td data-label="Рентаб." class="tnum"><b>${m.profitability_pct == null ? "—" : m.profitability_pct + "%"}</b></td><td data-label="ФОТ/Маржа" class="tnum ${fotCellClass[fotSt] || ""}">${m.fot_margin_pct == null ? "—" : m.fot_margin_pct + "%"}</td>`
+              : `<td colspan="4" class="text-muted" style="text-align:center">Нет расчёта</td>`}
+          </tr>`;
+        }).join("")}</tbody>
+      </table>`;
+  }
+
+  async function loadAnalytics() {
+    const from = $("#head-from").value || new Date().toISOString().slice(0, 7);
+    const to = $("#head-to").value || from;
+    try {
+      const data = await api(`/api/head/history?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`);
+      renderHistoryCharts(data);
+      renderHeatMap(data);
+    } catch (e) {
+      ["hst-margin","hst-gross","hst-profit","hst-rent"].forEach(id => { const el = $(`#${id}`); if (el) el.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; });
+      const hm = $("#heat-map"); if (hm) hm.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+    }
+    loadWaterfall();
+  }
+
+  function renderHistoryCharts(data) {
+    const rows = data.monthly;
+    renderTrendChart("#hst-margin", rows, "margin", "Маржа");
+    renderTrendChart("#hst-gross", rows, "gross", "ФОТ");
+    renderTrendChart("#hst-profit", rows, "profit", "Прибыль");
+    renderTrendChart("#hst-rent", rows, "profitability_pct", "Рентаб.%");
+  }
+
+  function renderTrendChart(selector, rows, key, label) {
+    const area = $(selector);
+    if (!area) return;
+    if (!rows.length) { area.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    const values = rows.map(r => Number(r[key]) || 0);
+    const maxV = Math.max(1, ...values);
+    const W = Math.max(320, Math.min(460, rows.length * 60 + 50));
+    const H = 240;
+    const padL = 8, padR = 8, padT = 18, padB = 50;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const barW = Math.max(16, Math.min(46, (innerW - 8 * (rows.length - 1)) / rows.length));
+    const scaleX = innerW / rows.length;
+    const yScale = (v) => padT + innerH - (v / maxV) * innerH;
+    let bars = "";
+    rows.forEach((r, i) => {
+      const v = Number(r[key]) || 0;
+      const x = padL + i * scaleX + (scaleX - barW) / 2;
+      const y = yScale(v);
+      const bh = padT + innerH - y;
+      const valTxt = key === "profitability_pct" ? (v == null ? "—" : v + "%") : shortMoney(v);
+      const color = (key === "profit" || key === "profitability_pct") ? (v >= 0 ? "var(--color-success)" : "var(--color-error)") : "#e5006e";
+      bars += `<g class="bar-group" data-idx="${i}">
+        <rect x="${x}" y="${y}" width="${barW}" height="${Math.max(1, bh)}" rx="3" fill="${color}" class="bar-rect"/>
+        <text x="${x + barW / 2}" y="${y - 6}" text-anchor="middle" font-size="10" fill="var(--color-text)" font-family="JetBrains Mono" font-weight="600">${valTxt}</text>
+        <text x="${x + barW / 2}" y="${padT + innerH + 14}" text-anchor="middle" font-size="9" fill="var(--color-text-muted)">${escapeHtml(r.period.slice(5))}</text>
+      </g>`;
+    });
+    area.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart-svg">${bars}</svg>`;
+  }
+
+  function renderHeatMap(data) {
+    const wrap = $("#heat-map");
+    if (!wrap) return;
+    const managers = data.managers;
+    const byManager = data.by_manager;
+    if (!managers.length || !byManager.length) { wrap.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    // Сетка: строки = менеджеры (по data по периодам), столбцы = месяцы
+    const periods = data.monthly.map(m => m.period);
+    const cellW = 60, cellH = 32, padL = 120, padT = 28;
+    const W = padL + periods.length * cellW + 10;
+    const H = padT + managers.length * cellH + 10;
+    // Поиск максимума маржи для цвета
+    let maxV = 1;
+    byManager.forEach(bm => bm.data.forEach(d => { if (d.margin > maxV) maxV = d.margin; }));
+    let svg = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="heat-svg">`;
+    // Заголовки столбцов (месяцы)
+    periods.forEach((p, i) => {
+      svg += `<text x="${padL + i * cellW + cellW / 2}" y="${padT - 8}" text-anchor="middle" font-size="10" fill="var(--color-text-muted)" font-weight="600">${escapeHtml(p.slice(5))}</text>`;
+    });
+    // Подписи строк + ячейки
+    byManager.forEach((bm, r) => {
+      const y = padT + r * cellH;
+      svg += `<text x="${padL - 8}" y="${y + cellH / 2 + 3}" text-anchor="end" font-size="10" fill="var(--color-text)" font-weight="600">${escapeHtml(bm.full_name)}</text>`;
+      bm.data.forEach((d, c) => {
+        const x = padL + c * cellW;
+        const intensity = d.margin / maxV;
+        const fill = heatColor(intensity);
+        svg += `<rect class="heat-cell" x="${x + 2}" y="${y + 2}" width="${cellW - 4}" height="${cellH - 4}" rx="3" fill="${fill}" data-period="${escapeHtml(d.period)}" data-name="${escapeHtml(bm.full_name)}" data-margin="${d.margin}" data-profit="${d.profit || 0}" data-rent="${d.profitability_pct == null ? '—' : d.profitability_pct}"/>`;
+        svg += `<text x="${x + cellW / 2}" y="${y + cellH / 2 + 2}" text-anchor="middle" font-size="9" fill="${intensity > 0.55 ? 'white' : 'var(--color-text)'}" font-family="JetBrains Mono" font-weight="600">${d.margin > 0 ? shortMoney(d.margin) : "—"}</text>`;
+      });
+    });
+    svg += "</svg>";
+    wrap.innerHTML = svg + '<div id="hm-tooltip" class="wf-tooltip" style="display:none"></div>';
+    const tooltip = $("#hm-tooltip");
+    wrap.querySelectorAll(".heat-cell").forEach(cell => {
+      cell.addEventListener("mousemove", (e) => {
+        tooltip.innerHTML = `<div class="tt-period">${escapeHtml(cell.dataset.name)} — ${escapeHtml(cell.dataset.period)}</div>
+          <div class="tt-row"><span>Маржа</span><b>${formatMoney(parseFloat(cell.dataset.margin))}</b></div>
+          <div class="tt-row"><span>Прибыль</span><b>${formatMoney(parseFloat(cell.dataset.profit))}</b></div>
+          <div class="tt-row"><span>Рентаб.</span><b>${cell.dataset.rent}${cell.dataset.rent !== "—" ? "%" : ""}</b></div>`;
+        tooltip.style.display = "block";
+        const rect = wrap.getBoundingClientRect();
+        tooltip.style.left = Math.min(e.clientX - rect.left + 10, rect.width - 200) + "px";
+        tooltip.style.top = Math.max(0, e.clientY - rect.top - 100) + "px";
+      });
+      cell.addEventListener("mouseleave", () => { tooltip.style.display = "none"; });
+    });
+  }
+
+  function heatColor(t) {
+    // интерполяция от #ededf0 (surface-offset) к #e5006e (primary)
+    t = Math.max(0, Math.min(1, t));
+    const r = Math.round(237 + (229 - 237) * t);
+    const g = Math.round(237 + (0 - 237) * t);
+    const b = Math.round(240 + (110 - 240) * t);
+    return `rgb(${r},${g},${b})`;
+  }
+
+  async function loadWaterfall() {
+    const period = $("#waterfall-period").value || new Date().toISOString().slice(0, 7);
+    const area = $("#waterfall");
+    if (!area) return;
+    try {
+      const data = await api(`/api/head/waterfall?period=${encodeURIComponent(period)}`);
+      renderWaterfall(area, data);
+    } catch (e) { area.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+
+  function renderWaterfall(area, data) {
+    const items = data.items.filter(it => it.has_current || it.has_previous);
+    const prev = data.previous_total;
+    const cur = data.current_total;
+    if (!items.length && prev === 0 && cur === 0) { area.innerHTML = '<div class="empty">Нет данных</div>'; return; }
+    // Учитываем стартовый бар (previous), дельты менеджеров, итоговый бар (current)
+    const all = [{ label: data.previous_period, val: prev, type: "start" }];
+    let running = prev;
+    items.forEach(it => {
+      all.push({ label: shortName(it.full_name), val: it.delta, type: it.delta >= 0 ? "pos" : "neg", runningBefore: running });
+      running += it.delta;
+    });
+    all.push({ label: data.period, val: cur, type: "end" });
+
+    const maxV = Math.max(prev, cur, ...items.map(it => Math.abs(it.delta)), 1);
+    const W = Math.max(400, Math.min(700, all.length * 70 + 60));
+    const H = 280;
+    const padL = 50, padR = 16, padT = 20, padB = 50;
+    const innerW = W - padL - padR;
+    const innerH = H - padT - padB;
+    const barW = Math.max(20, Math.min(50, (innerW - 4 * (all.length - 1)) / all.length));
+    const scaleX = innerW / all.length;
+    const yScale = (v) => padT + innerH - (v / maxV) * innerH;
+    let bars = "";
+    let connectors = "";
+    let prevRight = null;
+    let prevY = null;
+    all.forEach((b, i) => {
+      const cx = padL + i * scaleX + scaleX / 2;
+      const x = cx - barW / 2;
+      if (b.type === "start" || b.type === "end") {
+        const y = yScale(b.val);
+        const bh = padT + innerH - y;
+        const color = b.type === "start" ? "var(--color-text-faint)" : "var(--color-primary)";
+        bars += `<rect x="${x}" y="${y}" width="${barW}" height="${Math.max(1, bh)}" rx="3" fill="${color}" class="waterfall-bar-total" data-idx="${i}"/>`;
+        bars += `<text x="${cx}" y="${y - 6}" text-anchor="middle" font-size="10" fill="var(--color-text)" font-family="JetBrains Mono" font-weight="700">${shortMoney(b.val)}</text>`;
+        if (prevRight !== null) connectors += `<line x1="${prevRight}" y1="${prevY}" x2="${x}" y2="${prevY}" class="waterfall-connector"/>`;
+        prevRight = x + barW; prevY = y;
+      } else {
+        const delta = b.val;
+        const baseV = b.runningBefore;
+        const baseY = yScale(baseV);
+        const tipY = yScale(baseV + delta);
+        const topY = Math.min(baseY, tipY);
+        const bh = Math.max(1, Math.abs(baseY - tipY));
+        const color = delta >= 0 ? "var(--color-success)" : "var(--color-error)";
+        bars += `<rect x="${x}" y="${topY}" width="${barW}" height="${bh}" rx="3" fill="${color}" class="${delta >= 0 ? "waterfall-bar-pos" : "waterfall-bar-neg"}" data-idx="${i}"/>`;
+        bars += `<text x="${cx}" y="${(delta >= 0 ? tipY : baseY) - 6}" text-anchor="middle" font-size="10" fill="${delta >= 0 ? "var(--color-success)" : "var(--color-error)"}" font-family="JetBrains Mono" font-weight="700">${delta >= 0 ? "+" : ""}${shortMoney(delta)}</text>`;
+        if (prevRight !== null) connectors += `<line x1="${prevRight}" y1="${prevY}" x2="${x}" y2="${prevY}" class="waterfall-connector"/>`;
+        prevRight = x + barW; prevY = delta >= 0 ? tipY : baseY;
+      }
+      bars += `<text x="${cx}" y="${padT + innerH + 16}" text-anchor="middle" font-size="10" fill="var(--color-text-muted)">${escapeHtml(b.label)}</text>`;
+    });
+    area.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="chart-svg">${connectors}${bars}</svg>
+      <div style="margin-top:var(--space-3); display:flex; gap:var(--space-4); justify-content:center; font-size:var(--text-xs); color:var(--color-text-muted)">
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-text-faint);vertical-align:middle;margin-right:4px;border-radius:2px"></span>${escapeHtml(data.previous_period)} (старт)</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-success);vertical-align:middle;margin-right:4px;border-radius:2px"></span>рост</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-error);vertical-align:middle;margin-right:4px;border-radius:2px"></span>падение</span>
+        <span><span style="display:inline-block;width:12px;height:12px;background:var(--color-primary);vertical-align:middle;margin-right:4px;border-radius:2px"></span>${escapeHtml(data.period)} (итог)</span>
+        <span><b>Δ итого: ${data.total_delta >= 0 ? "+" : ""}${formatMoney(data.total_delta)}</b></span>
+      </div>`;
   }
 
   async function loadProfitForm() {
     const period = $("#head-profit-period").value || new Date().toISOString().slice(0, 7);
     const wrap = $("#profit-form");
     try {
-      const data = await api(`/api/head/team?period=${encodeURIComponent(period)}`);
-      if (!data.members.length) { wrap.innerHTML = '<div class="empty">В отделе нет менеджеров</div>'; return; }
+      const data = await api(`/api/head/dashboard?period=${encodeURIComponent(period)}`);
       const activeMembers = data.members.filter(m => m.record);
-      if (!activeMembers.length) { wrap.innerHTML = `<div class="empty">У менеджеров нет расчётов за ${escapeHtml(period)}. Сделайте расчёты во вкладке ЗП менеджеров.</div>`; return; }
+      if (!data.members.length) { wrap.innerHTML = '<div class="empty">В отделе нет менеджеров</div>'; return; }
+      if (!activeMembers.length) { wrap.innerHTML = `<div class="empty">У менеджеров нет расчётов за ${escapeHtml(period)}</div>`; return; }
       wrap.innerHTML = `
         <table class="data-table">
           <thead><tr><th>Менеджер</th><th>Грейд / Оклад</th><th>Маржа за период</th><th>Себестоимость продаж, ₽</th></tr></thead>
           <tbody>${activeMembers.map(m => `
             <tr>
               <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
-              <td data-label="Грейд" class="text-muted">${escapeHtml(m.grade_name)} / ${formatMoney(m.base_salary)}</td>
+              <td data-label="Грейд" class="text-muted">${escapeHtml(m.grade_name || "—")} / ${m.base_salary != null ? formatMoney(m.base_salary) : "—"}</td>
               <td data-label="Маржа" class="tnum">${formatMoney((m.record.service_margin || 0) + (m.record.goods_margin || 0))}</td>
               <td data-label="Себестоимость"><input type="number" class="form-input profit-input" data-uid="${m.user_id}" min="0" step="0.01" value="0" style="text-align:right"></td>
             </tr>`).join("")}</tbody>
@@ -548,29 +865,31 @@ const App = (() => {
     const period = $("#head-profit-period").value || new Date().toISOString().slice(0, 7);
     const items = [];
     $$(".profit-input").forEach(inp => {
-      const uid = parseInt(inp.dataset.uid);
-      const cp = parseFloat(inp.value) || 0;
-      items.push({ user_id: uid, cost_price: cp });
+      items.push({ user_id: parseInt(inp.dataset.uid), cost_price: parseFloat(inp.value) || 0 });
     });
     if (!items.length) { toast("Сначала загрузите менеджеров", "error"); return; }
     const resBox = $("#profit-result");
     try {
       const r = await api("/api/head/profitability", { method: "POST", body: { period, items } });
       const t = r.totals;
+      const fotSt = t.fot_status || "none";
       resBox.innerHTML = `
-        <div class="card-header"><div class="card-title">Рентабельность по сотрудникам — ${escapeHtml(r.period)}</div></div>
+        <div class="card-header"><div class="card-title">Рентабельность — ${escapeHtml(r.period)}</div></div>
         <div class="kpis-row">
           <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.margin)}</div><div class="kpi-lbl">маржа</div></div>
           <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.labor_cost)}</div><div class="kpi-lbl">зп-расходы</div></div>
           <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.operating_cost)}</div><div class="kpi-lbl">операц.</div></div>
           <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.cost_price)}</div><div class="kpi-lbl">себестоимость</div></div>
           <div class="kpi ${t.profit >= 0 ? "kpi-green" : "kpi-red"}"><div class="kpi-val">${formatMoneyShort(t.profit)}</div><div class="kpi-lbl">прибыль</div></div>
+          <div class="kpi"><div class="kpi-val">${t.profitability_pct == null ? "—" : t.profitability_pct + "%"}</div><div class="kpi-lbl">рентаб.</div></div>
+          <div class="kpi"><div class="kpi-val">${t.fot_margin_pct == null ? "—" : t.fot_margin_pct + "%"}</div><div class="kpi-lbl">ФОТ/Маржа</div><div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div></div>
         </div>
         <div class="table-wrap">
           <table class="data-table">
-            <thead><tr><th>Менеджер</th><th>Себестоимость</th><th>Маржа</th><th>ФОТ</th><th>НДФЛ</th><th>Взносы 7.6%</th><th>НДС 5%</th><th>Офис</th><th>Расходы всего</th><th>Прибыль</th><th>Рентаб.</th></tr></thead>
-            <tbody>${r.rows.map(row => `
-              <tr>
+            <thead><tr><th>Менеджер</th><th>Себестоимость</th><th>Маржа</th><th>ФОТ</th><th>НДФЛ</th><th>Взносы</th><th>НДС</th><th>Офис</th><th>Расходы</th><th>Прибыль</th><th>Рентаб.</th><th>ФОТ/М</th></tr></thead>
+            <tbody>${r.rows.map(row => {
+              const st = row.fot_status || "none";
+              return `<tr>
                 <td data-label="Менеджер"><b>${escapeHtml(row.full_name)}</b></td>
                 <td data-label="Себестоимость" class="tnum">${formatMoney(row.cost_price)}</td>
                 <td data-label="Маржа" class="tnum">${formatMoney(row.margin)}</td>
@@ -579,22 +898,21 @@ const App = (() => {
                 <td data-label="Взносы" class="tnum">${formatMoney(row.insurance)}</td>
                 <td data-label="НДС" class="tnum">${formatMoney(row.vat)}</td>
                 <td data-label="Офис" class="tnum">${formatMoney(row.office)}</td>
-                <td data-label="Расходы всего" class="tnum">${formatMoney(row.total_cost)}</td>
+                <td data-label="Расходы" class="tnum">${formatMoney(row.total_cost)}</td>
                 <td data-label="Прибыль" class="tnum ${row.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(row.profit)}</td>
-                <td data-label="Рентаб." class="tnum"><b>${row.profitability_pct == null ? "—" : (row.profitability_pct + "%")}</b></td>
-              </tr>`).join("")}</tbody>
+                <td data-label="Рентаб." class="tnum"><b>${row.profitability_pct == null ? "—" : row.profitability_pct + "%"}</b></td>
+                <td data-label="ФОТ/Маржа" class="tnum ${fotCellClass[st] || ""}">${row.fot_margin_pct == null ? "—" : row.fot_margin_pct + "%"}</td>
+              </tr>`;
+            }).join("")}</tbody>
             <tfoot><tr style="font-weight:700;background:var(--color-surface-2)">
-              <td data-label="">Итог</td>
-              <td class="tnum">${formatMoney(t.cost_price)}</td>
-              <td class="tnum">${formatMoney(t.margin)}</td>
-              <td class="tnum">${formatMoney(t.gross)}</td>
-              <td class="tnum">${formatMoney(t.ndfl)}</td>
-              <td class="tnum">${formatMoney(t.insurance)}</td>
-              <td class="tnum">${formatMoney(t.vat)}</td>
-              <td class="tnum">${formatMoney(t.office)}</td>
-              <td class="tnum">${formatMoney(t.total_cost)}</td>
+              <td>Итог</td>
+              <td class="tnum">${formatMoney(t.cost_price)}</td><td class="tnum">${formatMoney(t.margin)}</td>
+              <td class="tnum">${formatMoney(t.gross)}</td><td class="tnum">${formatMoney(t.ndfl)}</td>
+              <td class="tnum">${formatMoney(t.insurance)}</td><td class="tnum">${formatMoney(t.vat)}</td>
+              <td class="tnum">${formatMoney(t.office)}</td><td class="tnum">${formatMoney(t.total_cost)}</td>
               <td class="tnum ${t.profit >= 0 ? "net-cell" : "kpi-red"}">${formatMoney(t.profit)}</td>
-              <td class="tnum"><b>${t.margin > 0 ? (Math.round(t.profit / t.margin * 10000) / 100) + "%" : "—"}</b></td>
+              <td class="tnum"><b>${t.profitability_pct == null ? "—" : t.profitability_pct + "%"}</b></td>
+              <td class="tnum ${fotCellClass[fotSt] || ""}">${t.fot_margin_pct == null ? "—" : t.fot_margin_pct + "%"}</td>
             </tr></tfoot>
           </table>
         </div>`;
@@ -606,10 +924,12 @@ const App = (() => {
   async function loadCosts() {
     const period = $("#head-costs-period").value || new Date().toISOString().slice(0, 7);
     const totalsEl = $("#costs-totals");
-    const tableEl = $("#costs-table");
+    const laborEl = $("#costs-labor");
+    const operatingEl = $("#costs-operating");
     try {
       const r = await api(`/api/head/costs?period=${encodeURIComponent(period)}`);
       const t = r.totals;
+      const fotSt = t.fot_status || "none";
       totalsEl.innerHTML = `
         <div class="kpi"><div class="kpi-val">${t.managers}</div><div class="kpi-lbl">менеджеров</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.gross)}</div><div class="kpi-lbl">ФОТ gross</div></div>
@@ -618,24 +938,88 @@ const App = (() => {
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.vat)}</div><div class="kpi-lbl">НДС 5%</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.office)}</div><div class="kpi-lbl">офис</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.labor_cost)}</div><div class="kpi-lbl">зп-расходы</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.operating_cost)}</div><div class="kpi-lbl">операц.</div></div>`;
-      if (!r.items.length) { tableEl.innerHTML = '<div class="empty">В отделе нет менеджеров</div>'; return; }
-      tableEl.innerHTML = `
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.operating_cost)}</div><div class="kpi-lbl">операц.</div></div>
+        <div class="kpi"><div class="kpi-val">${t.fot_margin_pct == null ? "—" : t.fot_margin_pct + "%"}</div><div class="kpi-lbl">ФОТ/Маржа</div><div class="kpi-fot-status ${fotStatusClass[fotSt]}">${fotLabel[fotSt]}</div></div>`;
+      if (!r.items.length) {
+        laborEl.innerHTML = '<div class="empty">В отделе нет менеджеров</div>';
+        operatingEl.innerHTML = '<div class="empty">В отделе нет менеджеров</div>';
+        return;
+      }
+      laborEl.innerHTML = `
         <table class="data-table">
-          <thead><tr><th>Менеджер</th><th>ФОТ gross</th><th>НДФЛ</th><th>Взносы 7.6%</th><th>Маржа</th><th>НДС 5%</th><th>Офис</th><th>ЗП-расходы</th><th>Операц.</th></tr></thead>
-          <tbody>${r.items.map(it => `
-            <tr>
+          <thead><tr><th>Менеджер</th><th>ФОТ (gross)</th><th>НДФЛ</th><th>Взносы 7.6%</th></tr></thead>
+          <tbody>${r.items.map(it => `<tr>
+            <td data-label="Менеджер"><b>${escapeHtml(it.full_name)}</b></td>
+            ${it.has_record
+              ? `<td data-label="ФОТ" class="tnum">${formatMoney(it.gross)}</td><td data-label="НДФЛ" class="tnum">${formatMoney(it.ndfl)}</td><td data-label="Взносы" class="tnum">${formatMoney(it.insurance)}</td>`
+              : `<td colspan="3" class="text-muted" style="text-align:center">Нет расчёта</td>`}
+          </tr>`).join("")}</tbody>
+        </table>`;
+      operatingEl.innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>Менеджер</th><th>Маржа</th><th>НДС 5%</th><th>Офис</th><th>ФОТ/Маржа</th></tr></thead>
+          <tbody>${r.items.map(it => {
+            const st = it.fot_status || "none";
+            return `<tr>
               <td data-label="Менеджер"><b>${escapeHtml(it.full_name)}</b></td>
               ${it.has_record
-                ? `<td class="tnum">${formatMoney(it.gross)}</td><td class="tnum">${formatMoney(it.ndfl)}</td><td class="tnum">${formatMoney(it.insurance)}</td><td class="tnum">${formatMoney(it.margin)}</td><td class="tnum">${formatMoney(it.vat)}</td>`
-                : `<td colspan="5" class="text-muted" style="text-align:center">Нет расчёта</td>`}
+                ? `<td data-label="Маржа" class="tnum">${formatMoney(it.margin)}</td><td data-label="НДС" class="tnum">${formatMoney(it.vat)}</td>`
+                : `<td colspan="2" class="text-muted" style="text-align:center">Нет расчёта</td>`}
               <td data-label="Офис" class="tnum">${formatMoney(it.office)}</td>
-              ${it.has_record
-                ? `<td class="tnum">${formatMoney(it.gross + it.ndfl + it.insurance)}</td><td class="tnum">${formatMoney(it.vat + it.office)}</td>`
-                : `<td class="tnum">${formatMoney(it.office)}</td><td class="tnum">${formatMoney(it.office)}</td>`}
-            </tr>`).join("")}</tbody>
+              <td data-label="ФОТ/Маржа" class="tnum ${fotCellClass[st] || ""}">${it.fot_margin_pct == null ? "—" : it.fot_margin_pct + "%"}</td>
+            </tr>`;
+          }).join("")}</tbody>
         </table>`;
-    } catch (e) { tableEl.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+    } catch (e) {
+      totalsEl.innerHTML = "";
+      laborEl.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+      operatingEl.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+    }
+  }
+
+  function showCostFormulas() {
+    const overlay = document.createElement("div");
+    overlay.className = "modal-bg visible";
+    overlay.innerHTML = `
+      <div class="modal modal-formula">
+        <div class="modal-title">Формулы расходов</div>
+        <div class="formula-section">
+          <div class="formula-section-title">1. ФОТ (gross)</div>
+          <div class="formula-line"><span class="ftxt">ФОТ</span><span class="fsep">=</span><span class="ftxt">Оклад</span><span class="fsep">×</span><span class="fval">отработано÷раб.дней</span><span class="fsep">+</span><span class="ftxt">Премия услуг + Премия товара</span></div>
+          <div class="formula-sub">Берётся из расчёта ЗП менеджера (поле <b>gross_pay</b>)</div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">2. НДФЛ <span class="formula-hint">13%</span></div>
+          <div class="formula-line"><span class="ftxt">НДФЛ</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">×</span><span class="fval">13%</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">3. Страховые взносы IT-льгота <span class="formula-hint">7.6%</span></div>
+          <div class="formula-line"><span class="ftxt">Взносы</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">×</span><span class="fval">7.6%</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">4. НДС <span class="formula-hint">5% с маржи</span></div>
+          <div class="formula-line"><span class="ftxt">НДС</span><span class="fsep">=</span><span class="ftxt">Маржа (услуги+товар)</span><span class="fsep">×</span><span class="fval">5%</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">5. Офис <span class="formula-hint">45 000 ₽ на сотрудника</span></div>
+          <div class="formula-line"><span class="ftxt">Офис</span><span class="fsep">=</span><span class="fval">45 000 ₽</span><span class="fsep">×</span><span class="ftxt">кол-во менеджеров</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">6. ЗП-расходы</div>
+          <div class="formula-line"><span class="ftxt">ЗП-расходы</span><span class="fsep">=</span><span class="ftxt">ФОТ + НДФЛ + Взносы</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">7. Операционные расходы</div>
+          <div class="formula-line"><span class="ftxt">Операц.</span><span class="fsep">=</span><span class="ftxt">НДС + Офис</span></div>
+        </div>
+        <div class="formula-section">
+          <div class="formula-section-title">8. ФОТ / Маржа <span class="formula-hint">нормы АРТ</span></div>
+          <div class="formula-line"><span class="ftxt">ФОТ/Маржа</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">÷</span><span class="ftxt">Маржа</span><span class="fsep">×</span><span class="fval">100%</span></div>
+          <div class="formula-sub">Зелёная зона: <b>≤ 20%</b> (норма) · Жёлтая: <b>20–25%</b> · Красная: <b>> 25%</b> (критично)</div>
+        </div>
+        <div class="modal-actions"><button class="btn-accent" onclick="this.closest('.modal-bg').remove()">Понятно</button></div>
+      </div>`;
+    document.body.appendChild(overlay);
   }
 
   function escapeHtml(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
@@ -661,7 +1045,8 @@ const App = (() => {
     init, switchAuthTab, submitAuth, logout, navigate, onDeptChange, onRoleChange,
     loadHistory, loadProfile, saveProfile, calculate, toggleTheme,
     showFormula, exportRecord, loadSummary, switchMetric, toggleHistory,
-    loadTeam, loadProfitForm, calcProfitability, loadCosts,
+    loadDashboard, loadAnalytics, loadWaterfall, loadProfitForm, calcProfitability,
+    loadCosts, showCostFormulas,
   };
 })();
 

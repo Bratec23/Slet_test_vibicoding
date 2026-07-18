@@ -1,4 +1,5 @@
-from typing import List
+from typing import List, Optional, Tuple
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
@@ -14,23 +15,146 @@ from app.routers.auth import get_current_head
 router = APIRouter(prefix="/api/head", tags=["head"])
 
 
+def _latest_record_for(user_id: int, period: str, db: Session) -> Optional[PayrollRecord]:
+    return db.scalar(
+        select(PayrollRecord)
+        .where(PayrollRecord.user_id == user_id, PayrollRecord.period == period)
+        .order_by(PayrollRecord.created_at.desc())
+        .limit(1)
+    )
+
+
+def _calc_metrics(rec: PayrollRecord, cost_price: float = 0.0) -> dict:
+    margin = round(float(rec.service_margin) + float(rec.goods_margin), 2)
+    gross = float(rec.gross_pay)
+    ndfl = float(rec.tax_amount)
+    insurance = round(gross * settings.INSURANCE_RATE_PERCENT / 100, 2)
+    vat = round(margin * settings.VAT_RATE_PERCENT / 100, 2)
+    office = settings.OFFICE_COST_PER_EMPLOYEE
+    labor_cost = round(gross + ndfl + insurance, 2)
+    operating_cost = round(vat + office, 2)
+    total_cost = round(labor_cost + operating_cost + cost_price, 2)
+    profit = round(margin - total_cost, 2)
+    profitability_pct = round(profit / margin * 100, 2) if margin > 0 else None
+    fot_margin_pct = round(gross / margin * 100, 2) if margin > 0 else None
+    return {
+        "margin": margin, "gross": gross, "ndfl": ndfl, "insurance": insurance,
+        "vat": vat, "office": office, "labor_cost": labor_cost, "operating_cost": operating_cost,
+        "total_cost": total_cost, "profit": profit, "profitability_pct": profitability_pct,
+        "fot_margin_pct": fot_margin_pct,
+    }
+
+
+def _fot_status(pct: Optional[float]) -> Optional[str]:
+    if pct is None:
+        return None
+    if pct > settings.FOT_MARGIN_CRITICAL_PCT:
+        return "critical"
+    if pct > settings.FOT_MARGIN_NORMAL_PCT:
+        return "warning"
+    return "normal"
+
+
 class TeamMemberOut(BaseModel):
     user_id: int
     full_name: str
     position_name: str
-    grade_name: str
-    base_salary: float
-    record: dict | None = None
+    grade_name: Optional[str] = None
+    base_salary: Optional[float] = None
+    record: Optional[dict] = None
 
 
-class TeamOut(BaseModel):
+class MetricsRowOut(BaseModel):
+    user_id: int
+    full_name: str
+    has_record: bool
+    margin: float = 0
+    gross: float = 0
+    ndfl: float = 0
+    insurance: float = 0
+    vat: float = 0
+    office: float = 0
+    labor_cost: float = 0
+    operating_cost: float = 0
+    profit: float = 0
+    profitability_pct: Optional[float] = None
+    fot_margin_pct: Optional[float] = None
+    fot_status: Optional[str] = None
+
+
+class DashboardOut(BaseModel):
     period: str
     department_name: str
     total_managers: int
-    total_margin: float
-    total_gross: float
-    total_net: float
+    kpis: dict
     members: List[TeamMemberOut]
+    metrics: List[MetricsRowOut]
+    totals: dict
+
+
+@router.get("/dashboard", response_model=DashboardOut)
+def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    dept = db.get(Department, head.department_id)
+    dept_name = dept.name if dept else "—"
+    members_q = db.scalars(
+        select(User).where(User.department_id == head.department_id, User.role == "manager").order_by(User.full_name)
+    ).all()
+    members: list[TeamMemberOut] = []
+    metrics: list[MetricsRowOut] = []
+    totals = {
+        "margin": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
+        "office": 0.0, "labor_cost": 0.0, "operating_cost": 0.0, "total_cost": 0.0,
+        "profit": 0.0, "managers_with_data": 0,
+    }
+    for m in members_q:
+        rec = _latest_record_for(m.id, period, db)
+        rec_dict = None
+        if rec:
+            rec_dict = {
+                "id": rec.id, "period": rec.period,
+                "service_margin": float(rec.service_margin),
+                "goods_margin": float(rec.goods_margin),
+                "bonus_total": float(rec.bonus_total),
+                "gross_pay": float(rec.gross_pay),
+                "tax_amount": float(rec.tax_amount),
+                "net_pay": float(rec.net_pay),
+                "base_salary": float(rec.base_salary),
+                "created_at": rec.created_at.strftime("%d.%m.%Y %H:%M") if rec.created_at else "",
+            }
+        members.append(TeamMemberOut(
+            user_id=m.id, full_name=m.full_name,
+            position_name=m.position.name if m.position else "—",
+            grade_name=(m.grade.name if m.grade else None),
+            base_salary=(float(m.grade.base_salary) if m.grade else None),
+            record=rec_dict,
+        ))
+        if rec:
+            cm = _calc_metrics(rec)
+            metrics.append(MetricsRowOut(
+                user_id=m.id, full_name=m.full_name, has_record=True,
+                **cm, fot_status=_fot_status(cm["fot_margin_pct"]),
+            ))
+            for k in ("margin", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "profit"):
+                totals[k] += cm[k]
+            totals["managers_with_data"] += 1
+        else:
+            metrics.append(MetricsRowOut(user_id=m.id, full_name=m.full_name, has_record=False))
+    for k in list(totals.keys()):
+        if k != "managers_with_data":
+            totals[k] = round(totals[k], 2)
+    totals["profitability_pct"] = round(totals["profit"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["fot_status"] = _fot_status(totals["fot_margin_pct"])
+    kpis = {
+        "margin": totals["margin"], "gross": totals["gross"], "profit": totals["profit"],
+        "profitability_pct": totals["profitability_pct"],
+        "fot_margin_pct": totals["fot_margin_pct"], "fot_status": totals["fot_status"],
+        "managers_total": len(members_q), "managers_with_data": totals["managers_with_data"],
+    }
+    return DashboardOut(
+        period=period, department_name=dept_name, total_managers=len(members_q),
+        kpis=kpis, members=members, metrics=metrics, totals=totals,
+    )
 
 
 class ProfitabilityItemIn(BaseModel):
@@ -57,7 +181,9 @@ class ProfitabilityRowOut(BaseModel):
     operating_cost: float
     total_cost: float
     profit: float
-    profitability_pct: float | None
+    profitability_pct: Optional[float]
+    fot_margin_pct: Optional[float]
+    fot_status: Optional[str]
     has_record: bool
 
 
@@ -66,91 +192,6 @@ class ProfitabilityResponse(BaseModel):
     department_name: str
     rows: List[ProfitabilityRowOut]
     totals: dict
-
-
-def _latest_record_for(user_id: int, period: str, db: Session) -> PayrollRecord | None:
-    return db.scalar(
-        select(PayrollRecord)
-        .where(PayrollRecord.user_id == user_id, PayrollRecord.period == period)
-        .order_by(PayrollRecord.created_at.desc())
-        .limit(1)
-    )
-
-
-@router.get("/team", response_model=TeamOut)
-def team(period: str = Query(..., description="ГГГГ-ММ"), db: Session = Depends(get_db), head: User = Depends(get_current_head)):
-    members_q = db.scalars(
-        select(User).where(User.department_id == head.department_id, User.role == "manager").order_by(User.full_name)
-    ).all()
-    dept = db.get(Department, head.department_id)
-    dept_name = dept.name if dept else "—"
-    members: list[TeamMemberOut] = []
-    total_margin = 0.0
-    total_gross = 0.0
-    total_net = 0.0
-    for m in members_q:
-        rec = _latest_record_for(m.id, period, db)
-        rec_out = None
-        if rec:
-            rec_out = {
-                "id": rec.id,
-                "period": rec.period,
-                "service_margin": float(rec.service_margin),
-                "goods_margin": float(rec.goods_margin),
-                "bonus_total": float(rec.bonus_total),
-                "gross_pay": float(rec.gross_pay),
-                "tax_amount": float(rec.tax_amount),
-                "net_pay": float(rec.net_pay),
-                "base_salary": float(rec.base_salary),
-                "created_at": rec.created_at.strftime("%d.%m.%Y %H:%M") if rec.created_at else "",
-            }
-            total_margin += float(rec.service_margin) + float(rec.goods_margin)
-            total_gross += float(rec.gross_pay)
-            total_net += float(rec.net_pay)
-        members.append(TeamMemberOut(
-            user_id=m.id,
-            full_name=m.full_name,
-            position_name=m.position.name if m.position else "—",
-            grade_name=m.grade.name if m.grade else "—",
-            base_salary=float(m.grade.base_salary) if m.grade else 0.0,
-            record=rec_out,
-        ))
-    return TeamOut(
-        period=period,
-        department_name=dept_name,
-        total_managers=len(members_q),
-        total_margin=round(total_margin, 2),
-        total_gross=round(total_gross, 2),
-        total_net=round(total_net, 2),
-        members=members,
-    )
-
-
-def _calc_profitability(rec: PayrollRecord, cost_price: float) -> dict:
-    margin = round(float(rec.service_margin) + float(rec.goods_margin), 2)
-    gross = float(rec.gross_pay)
-    ndfl = float(rec.tax_amount)
-    insurance = round(gross * settings.INSURANCE_RATE_PERCENT / 100, 2)
-    vat = round(margin * settings.VAT_RATE_PERCENT / 100, 2)
-    office = settings.OFFICE_COST_PER_EMPLOYEE
-    labor_cost = round(gross + ndfl + insurance, 2)
-    operating_cost = round(vat + office, 2)
-    total_cost = round(labor_cost + operating_cost + cost_price, 2)
-    profit = round(margin - total_cost, 2)
-    profitability_pct = round(profit / margin * 100, 2) if margin > 0 else None
-    return {
-        "margin": margin,
-        "gross": gross,
-        "ndfl": ndfl,
-        "insurance": insurance,
-        "vat": vat,
-        "office": office,
-        "labor_cost": labor_cost,
-        "operating_cost": operating_cost,
-        "total_cost": total_cost,
-        "profit": profit,
-        "profitability_pct": profitability_pct,
-    }
 
 
 @router.post("/profitability", response_model=ProfitabilityResponse)
@@ -173,27 +214,25 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
                 user_id=user.id, full_name=user.full_name, cost_price=item.cost_price,
                 margin=0, gross=0, ndfl=0, insurance=0, vat=0, office=0,
                 labor_cost=0, operating_cost=0, total_cost=0, profit=0,
-                profitability_pct=None, has_record=False,
+                profitability_pct=None, fot_margin_pct=None, fot_status=None, has_record=False,
             ))
             continue
-        calc = _calc_profitability(rec, item.cost_price)
+        cm = _calc_metrics(rec, item.cost_price)
         rows.append(ProfitabilityRowOut(
             user_id=user.id, full_name=user.full_name, cost_price=item.cost_price,
-            has_record=True, **calc,
+            has_record=True, **cm, fot_status=_fot_status(cm["fot_margin_pct"]),
         ))
         for k in ("margin", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "profit"):
-            totals[k] += calc[k]
+            totals[k] += cm[k]
         totals["cost_price"] += item.cost_price
         totals["managers_with_data"] += 1
-    for k in totals:
+    for k in list(totals.keys()):
         if k != "managers_with_data":
             totals[k] = round(totals[k], 2)
-    return ProfitabilityResponse(
-        period=payload.period,
-        department_name=dept_name,
-        rows=rows,
-        totals=totals,
-    )
+    totals["profitability_pct"] = round(totals["profit"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["fot_status"] = _fot_status(totals["fot_margin_pct"])
+    return ProfitabilityResponse(period=payload.period, department_name=dept_name, rows=rows, totals=totals)
 
 
 @router.get("/costs", response_model=dict)
@@ -204,56 +243,187 @@ def costs(period: str = Query(...), db: Session = Depends(get_db), head: User = 
         select(User).where(User.department_id == head.department_id, User.role == "manager")
     ).all()
     items = []
-    total_office = 0.0
-    total_labor = 0.0
-    total_vat = 0.0
-    total_ndfl = 0.0
-    total_insurance = 0.0
-    total_gross = 0.0
-    total_margin = 0.0
+    totals = {
+        "managers": 0, "office": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0,
+        "vat": 0.0, "margin": 0.0, "labor_cost": 0.0, "operating_cost": 0.0,
+    }
     for m in managers:
         rec = _latest_record_for(m.id, period, db)
         office = settings.OFFICE_COST_PER_EMPLOYEE
-        total_office += office
         row = {
-            "user_id": m.id,
-            "full_name": m.full_name,
-            "office": office,
-            "has_record": False,
-            "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0, "margin": 0.0,
+            "user_id": m.id, "full_name": m.full_name, "office": office,
+            "has_record": False, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0,
+            "vat": 0.0, "margin": 0.0, "fot_margin_pct": None, "fot_status": None,
+            "labor_cost": 0.0, "operating_cost": 0.0,
         }
         if rec:
-            gross = float(rec.gross_pay)
-            ndfl = float(rec.tax_amount)
-            insurance = round(gross * settings.INSURANCE_RATE_PERCENT / 100, 2)
-            margin = round(float(rec.service_margin) + float(rec.goods_margin), 2)
-            vat = round(margin * settings.VAT_RATE_PERCENT / 100, 2)
+            cm = _calc_metrics(rec)
             row.update({
-                "has_record": True, "gross": gross, "ndfl": ndfl,
-                "insurance": insurance, "vat": vat, "margin": margin,
+                "has_record": True, "gross": cm["gross"], "ndfl": cm["ndfl"],
+                "insurance": cm["insurance"], "vat": cm["vat"], "margin": cm["margin"],
+                "fot_margin_pct": cm["fot_margin_pct"], "fot_status": _fot_status(cm["fot_margin_pct"]),
+                "labor_cost": cm["labor_cost"], "operating_cost": cm["operating_cost"],
             })
-            total_gross += gross
-            total_ndfl += ndfl
-            total_insurance += insurance
-            total_vat += vat
-            total_margin += margin
+            totals["gross"] += cm["gross"]; totals["ndfl"] += cm["ndfl"]
+            totals["insurance"] += cm["insurance"]; totals["vat"] += cm["vat"]
+            totals["margin"] += cm["margin"]
+        totals["office"] += office
+        totals["managers"] += 1
         items.append(row)
+    for k in ("office", "gross", "ndfl", "insurance", "vat", "margin"):
+        totals[k] = round(totals[k], 2)
+    totals["labor_cost"] = round(totals["gross"] + totals["ndfl"] + totals["insurance"], 2)
+    totals["operating_cost"] = round(totals["vat"] + totals["office"], 2)
+    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["fot_status"] = _fot_status(totals["fot_margin_pct"])
     return {
-        "period": period,
-        "department_name": dept_name,
+        "period": period, "department_name": dept_name,
         "office_per_employee": settings.OFFICE_COST_PER_EMPLOYEE,
         "insurance_rate_pct": settings.INSURANCE_RATE_PERCENT,
         "vat_rate_pct": settings.VAT_RATE_PERCENT,
-        "items": items,
-        "totals": {
-            "managers": len(managers),
-            "office": round(total_office, 2),
-            "gross": round(total_gross, 2),
-            "ndfl": round(total_ndfl, 2),
-            "insurance": round(total_insurance, 2),
-            "vat": round(total_vat, 2),
-            "margin": round(total_margin, 2),
-            "labor_cost": round(total_gross + total_ndfl + total_insurance, 2),
-            "operating_cost": round(total_vat + total_office, 2),
-        },
+        "ndfl_rate_pct": settings.NDFL_RATE_PERCENT,
+        "fot_normal_pct": settings.FOT_MARGIN_NORMAL_PCT,
+        "fot_critical_pct": settings.FOT_MARGIN_CRITICAL_PCT,
+        "items": items, "totals": totals,
     }
+
+
+def _prev_period(period: str) -> str:
+    try:
+        y, m = map(int, period.split("-"))
+        m -= 1
+        if m == 0:
+            m = 12; y -= 1
+        return f"{y:04d}-{m:02d}"
+    except Exception:
+        return period
+
+
+class HistoryOut(BaseModel):
+    from_period: str
+    to_period: str
+    department_name: str
+    managers: List[dict]
+    monthly: List[dict]
+    by_manager: List[dict]
+
+
+@router.get("/history", response_model=HistoryOut)
+def history(from_period: str = Query(..., alias="from"), to_period: str = Query(..., alias="to"),
+            db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    dept = db.get(Department, head.department_id)
+    dept_name = dept.name if dept else "—"
+    managers = db.scalars(
+        select(User).where(User.department_id == head.department_id, User.role == "manager").order_by(User.full_name)
+    ).all()
+    periods = _period_range(from_period, to_period)
+    by_manager = []
+    monthly = []
+    for p in periods:
+        margins = 0.0; gross = 0.0; profit = 0.0; fot_pct_sum = 0.0; fot_count = 0
+        for m in managers:
+            rec = _latest_record_for(m.id, p, db)
+            if rec:
+                cm = _calc_metrics(rec)
+                margins += cm["margin"]; gross += cm["gross"]; profit += cm["profit"]
+                if cm["fot_margin_pct"] is not None:
+                    fot_pct_sum += cm["fot_margin_pct"]; fot_count += 1
+        monthly.append({
+            "period": p,
+            "margin": round(margins, 2),
+            "gross": round(gross, 2),
+            "profit": round(profit, 2),
+            "profitability_pct": round(profit / margins * 100, 2) if margins > 0 else None,
+            "fot_margin_pct": round(fot_pct_sum / fot_count, 2) if fot_count > 0 else None,
+        })
+    for m in managers:
+        per_period = []
+        for p in periods:
+            rec = _latest_record_for(m.id, p, db)
+            if rec:
+                cm = _calc_metrics(rec)
+                per_period.append({
+                    "period": p, "margin": cm["margin"], "profit": cm["profit"],
+                    "profitability_pct": cm["profitability_pct"],
+                    "fot_margin_pct": cm["fot_margin_pct"],
+                })
+            else:
+                per_period.append({"period": p, "margin": 0, "profit": 0, "profitability_pct": None, "fot_margin_pct": None})
+        by_manager.append({
+            "user_id": m.id, "full_name": m.full_name,
+            "data": per_period,
+        })
+    return HistoryOut(
+        from_period=from_period, to_period=to_period,
+        department_name=dept_name,
+        managers=[{"user_id": m.id, "full_name": m.full_name} for m in managers],
+        monthly=monthly, by_manager=by_manager,
+    )
+
+
+class WaterfallItemOut(BaseModel):
+    user_id: int
+    full_name: str
+    current_margin: float
+    previous_margin: float
+    delta: float
+    has_current: bool
+    has_previous: bool
+
+
+class WaterfallOut(BaseModel):
+    period: str
+    previous_period: str
+    previous_total: float
+    current_total: float
+    total_delta: float
+    items: List[WaterfallItemOut]
+
+
+@router.get("/waterfall", response_model=WaterfallOut)
+def waterfall(period: str = Query(...), db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    prev_p = _prev_period(period)
+    managers = db.scalars(
+        select(User).where(User.department_id == head.department_id, User.role == "manager").order_by(User.full_name)
+    ).all()
+    items: list[WaterfallItemOut] = []
+    prev_total = 0.0
+    cur_total = 0.0
+    for m in managers:
+        cur_rec = _latest_record_for(m.id, period, db)
+        prev_rec = _latest_record_for(m.id, prev_p, db)
+        cur_m = round(float(cur_rec.service_margin) + float(cur_rec.goods_margin), 2) if cur_rec else 0.0
+        prev_m = round(float(prev_rec.service_margin) + float(prev_rec.goods_margin), 2) if prev_rec else 0.0
+        delta = round(cur_m - prev_m, 2)
+        items.append(WaterfallItemOut(
+            user_id=m.id, full_name=m.full_name,
+            current_margin=cur_m, previous_margin=prev_m, delta=delta,
+            has_current=cur_rec is not None, has_previous=prev_rec is not None,
+        ))
+        cur_total += cur_m
+        prev_total += prev_m
+    return WaterfallOut(
+        period=period, previous_period=prev_p,
+        previous_total=round(prev_total, 2),
+        current_total=round(cur_total, 2),
+        total_delta=round(cur_total - prev_total, 2),
+        items=items,
+    )
+
+
+def _period_range(start: str, end: str) -> List[str]:
+    try:
+        y, m = map(int, start.split("-"))
+        ey, em = map(int, end.split("-"))
+        out = []
+        cy, cm = y, m
+        while (cy, cm) <= (ey, em):
+            out.append(f"{cy:04d}-{cm:02d}")
+            cm += 1
+            if cm > 12:
+                cm = 1; cy += 1
+            if len(out) > 120:
+                break
+        return out
+    except Exception:
+        return [start]

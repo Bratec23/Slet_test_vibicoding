@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     VAT_RATE_PERCENT: float = 5.0
     NDFL_RATE_PERCENT: float = 13.0
 
+    FOT_MARGIN_NORMAL_PCT: float = 20.0
+    FOT_MARGIN_CRITICAL_PCT: float = 25.0
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
