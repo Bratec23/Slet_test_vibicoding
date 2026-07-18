@@ -188,10 +188,11 @@ const App = (() => {
     document.querySelectorAll(".page").forEach(p => p.style.display = "none");
     const page = $(`#page-${route}`);
     if (page) page.style.display = "block";
-    if (route === "payroll") { loadGradePill(); loadHistory(); setTimeout(() => attachAllMasksIn($("#page-payroll")), 50); }
+    if (route === "payroll") { attachAllMasksIn($("#page-payroll")); loadGradePill(); loadHistory(); }
     if (route === "profile") { loadProfile(); setTimeout(() => attachAllMasksIn($("#page-profile").parentNode), 50); }
     if (route === "head-dashboard") { loadDashboard(); }
-    if (route === "head-profitability") { setTimeout(attachMasksProfit, 50); }
+    if (route === "head-profitability") { loadProfitForm(); setTimeout(attachMasksProfit, 50); }
+    if (route === "head-costs") { loadCosts(); }
     if (route === "head-analytics") { loadAnalytics(); }
   }
 
@@ -286,8 +287,8 @@ const App = (() => {
 
   function parseNumInput(el) {
     if (!el) return 0;
-    if (el.dataset.raw != null) return parseFloat(el.dataset.raw) || 0;
-    const v = parseFloat(el.value);
+    const raw = (el.value || "").toString().replace(/\s/g, "").replace(",", ".");
+    const v = parseFloat(raw);
     return isNaN(v) ? 0 : v;
   }
 
@@ -574,7 +575,7 @@ const App = (() => {
     }
     overlay.innerHTML = `
       <div class="modal modal-formula">
-        <div class="modal-title">Формула расчёта</div>
+        <div class="modal-title-row"><div class="modal-title">Формула расчёта</div><button class="modal-close" type="button" onclick="this.closest('.modal-bg').remove()">✕</button></div>
         ${planHtml}
         <div class="formula-section">
           <div class="formula-section-title">1. Начисление по окладу</div>
@@ -1113,7 +1114,7 @@ const App = (() => {
     overlay.className = "modal-bg visible";
     overlay.innerHTML = `
       <div class="modal modal-formula">
-        <div class="modal-title">Формулы расходов</div>
+        <div class="modal-title-row"><div class="modal-title">Формулы расходов</div><button class="modal-close" type="button" onclick="this.closest('.modal-bg').remove()">✕</button></div>
         <div class="formula-section">
           <div class="formula-section-title">1. ФОТ (gross)</div>
           <div class="formula-line"><span class="ftxt">ФОТ</span><span class="fsep">=</span><span class="ftxt">Оклад</span><span class="fsep">×</span><span class="fval">отработано÷раб.дней</span><span class="fsep">+</span><span class="ftxt">Премия услуг + Премия товара</span></div>
@@ -1164,6 +1165,16 @@ const App = (() => {
 
   async function init() {
     initTheme();
+    document.addEventListener("click", (e) => {
+      if (e.target.classList && e.target.classList.contains("modal-bg")) {
+        e.target.remove();
+      }
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") {
+        document.querySelectorAll(".modal-bg.visible").forEach(m => m.remove());
+      }
+    });
     try {
       if (!departmentsCache.length) departmentsCache = await api("/api/departments", { auth: false });
       if (!gradesCache.length) gradesCache = await api("/api/grades", { auth: false });

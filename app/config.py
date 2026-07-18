@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     HEAD_REGISTER_PASSWORD: str = "123456789"
 
     OFFICE_COST_PER_EMPLOYEE: float = 45000.0
-    INSURANCE_RATE_PERCENT: float = 7.6
+    INSURANCE_RATE_PERCENT: float = 30.0
     VAT_RATE_PERCENT: float = 5.0
     NDFL_RATE_PERCENT: float = 13.0
 
