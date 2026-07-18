@@ -763,7 +763,7 @@ const App = (() => {
         <tbody>${metrics.map(m => `<tr>
           <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
           ${m.has_record
-            ? `<td data-label="ФОТ" class="tnum">${formatMoney(m.gross)}</td><td data-label="Взносы 7.6%" class="tnum">${formatMoney(m.insurance)}</td><td data-label="НДС 5%" class="tnum">${formatMoney(m.vat)}</td><td data-label="Офис" class="tnum">${formatMoney(m.office)}</td>`
+            ? `<td data-label="ФОТ" class="tnum">${formatMoney(m.gross)}</td><td data-label="Взносы 30%" class="tnum">${formatMoney(m.insurance)}</td><td data-label="НДС 5%" class="tnum">${formatMoney(m.vat)}</td><td data-label="Офис" class="tnum">${formatMoney(m.office)}</td>`
             : `<td colspan="4" class="text-muted" style="text-align:center">Нет расчёта</td>`}
         </tr>`).join("")}</tbody>
       </table>`;
@@ -1066,7 +1066,7 @@ const App = (() => {
         <div class="kpi"><div class="kpi-val">${t.managers}</div><div class="kpi-lbl">менеджеров</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.gross)}</div><div class="kpi-lbl">ФОТ gross</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.ndfl)}</div><div class="kpi-lbl">НДФЛ</div></div>
-        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.insurance)}</div><div class="kpi-lbl">взносы 7.6%</div></div>
+        <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.insurance)}</div><div class="kpi-lbl">взносы 30%</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.vat)}</div><div class="kpi-lbl">НДС 5%</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.office)}</div><div class="kpi-lbl">офис</div></div>
         <div class="kpi"><div class="kpi-val">${formatMoneyShort(t.labor_cost)}</div><div class="kpi-lbl">зп-расходы</div></div>
@@ -1079,7 +1079,7 @@ const App = (() => {
       }
       laborEl.innerHTML = `
         <table class="data-table">
-          <thead><tr><th>Менеджер</th><th>ФОТ (gross)</th><th>НДФЛ</th><th>Взносы 7.6%</th></tr></thead>
+          <thead><tr><th>Менеджер</th><th>ФОТ (gross)</th><th>НДФЛ</th><th>Взносы 30%</th></tr></thead>
           <tbody>${r.items.map(it => `<tr>
             <td data-label="Менеджер"><b>${escapeHtml(it.full_name)}</b></td>
             ${it.has_record
@@ -1125,8 +1125,8 @@ const App = (() => {
           <div class="formula-line"><span class="ftxt">НДФЛ</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">×</span><span class="fval">13%</span></div>
         </div>
         <div class="formula-section">
-          <div class="formula-section-title">3. Страховые взносы IT-льгота <span class="formula-hint">7.6%</span></div>
-          <div class="formula-line"><span class="ftxt">Взносы</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">×</span><span class="fval">7.6%</span></div>
+          <div class="formula-section-title">3. Страховые взносы IT-льгота <span class="formula-hint">30%</span></div>
+          <div class="formula-line"><span class="ftxt">Взносы</span><span class="fsep">=</span><span class="ftxt">ФОТ</span><span class="fsep">×</span><span class="fval">30%</span></div>
         </div>
         <div class="formula-section">
           <div class="formula-section-title">4. НДС <span class="formula-hint">5% с маржи</span></div>
