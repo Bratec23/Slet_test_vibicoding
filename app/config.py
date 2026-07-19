@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     DATABASE_URL: str = "sqlite:///./data/bitserves.db"
     CORS_ORIGINS: str = "*"
 
+    HOST: str = "0.0.0.0"
+    PORT: int = 8000
+
     HEAD_REGISTER_PASSWORD: str = "123456789"
 
     OFFICE_COST_PER_EMPLOYEE: float = 45000.0

@@ -7,3 +7,10 @@ venv/
 *.db
 .vscode/
 .idea/
+
+# Logs and service binaries (don't commit)
+*.log
+logs/
+bin/
+nssm.exe
+nssm.zip
