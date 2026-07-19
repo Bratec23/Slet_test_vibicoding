@@ -39,6 +39,7 @@ class GradeOut(BaseModel):
     service_factor: float
     has_plan: bool
     plan_margin: Optional[float] = None
+    sort_order: int = 0
     is_active: bool
     tiers: List[TierOut] = []
 
@@ -60,7 +61,7 @@ def list_positions(department_id: Optional[int] = Query(default=None), db: Sessi
 
 @router.get("/grades", response_model=List[GradeOut])
 def list_grades(db: Session = Depends(get_db)):
-    rows = db.scalars(select(Grade).where(Grade.is_active.is_(True)).order_by(Grade.name)).all()
+    rows = db.scalars(select(Grade).where(Grade.is_active.is_(True)).order_by(Grade.sort_order, Grade.name)).all()
     result = []
     for g in rows:
         tiers = db.scalars(select(GradeTier).where(GradeTier.grade_id == g.id).order_by(GradeTier.min_pct)).all()
@@ -71,6 +72,7 @@ def list_grades(db: Session = Depends(get_db)):
             service_factor=float(g.service_factor),
             has_plan=bool(g.has_plan),
             plan_margin=(float(g.plan_margin) if g.plan_margin is not None else None),
+            sort_order=int(g.sort_order or 0),
             is_active=bool(g.is_active),
             tiers=[TierOut(min_pct=float(t.min_pct), bonus_percent=float(t.bonus_percent)) for t in tiers],
         ))

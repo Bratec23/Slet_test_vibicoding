@@ -366,3 +366,83 @@ table.data-table tbody tr:last-child td { border-bottom: none; }
   .data-table tbody td[data-label="№"]::before { content: "Запись "; color: var(--color-text-faint); }
   .table-wrap { overflow-x: visible; }
 }
+
+/* ============ AUTH LINKS ============ */
+.auth-links { margin-top: var(--space-3); text-align: center; }
+.auth-links a { color: var(--color-text-muted); font-size: var(--text-sm); text-decoration: none; transition: color var(--transition); }
+.auth-links a:hover { color: var(--color-primary); }
+
+/* ============ MODAL ============ */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000;
+  padding: var(--space-4);
+  animation: fadeIn 160ms ease-out;
+}
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.modal-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  width: 100%; max-width: 440px;
+  padding: var(--space-6);
+  position: relative;
+  animation: slideUp 200ms cubic-bezier(0.16,1,0.3,1);
+}
+@keyframes slideUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+.modal-close {
+  position: absolute; top: var(--space-3); right: var(--space-3);
+  background: none; border: none; font-size: 1.6rem;
+  color: var(--color-text-faint); cursor: pointer;
+  width: 32px; height: 32px; border-radius: var(--radius-full);
+  display: flex; align-items: center; justify-content: center;
+  transition: background var(--transition), color var(--transition);
+}
+.modal-close:hover { background: var(--color-surface-2); color: var(--color-text); }
+.modal-title { font-size: var(--text-xl); font-weight: 600; margin-bottom: var(--space-2); }
+.modal-sub { color: var(--color-text-muted); font-size: var(--text-sm); margin-bottom: var(--space-4); line-height: 1.5; }
+.forgot-step .form-group { margin-bottom: var(--space-3); }
+.forgot-step .btn-primary { width: 100%; margin-top: var(--space-2); }
+.forgot-step .btn-ghost { width: 100%; margin-top: var(--space-2); text-align: center; }
+.forgot-code-input {
+  font-family: var(--font-mono); font-size: 1.5rem; letter-spacing: 0.5em;
+  text-align: center; padding: var(--space-3) var(--space-4);
+}
+.modal-success { text-align: center; padding: var(--space-4) 0; }
+.modal-success-icon {
+  width: 64px; height: 64px; border-radius: 50%;
+  background: var(--color-success-bg); color: var(--color-success);
+  font-size: 2rem; line-height: 64px; margin: 0 auto var(--space-3);
+}
+.modal-success-title { font-size: var(--text-xl); font-weight: 600; margin-bottom: var(--space-2); }
+.modal-success .btn-primary { width: 100%; margin-top: var(--space-4); }
+
+/* ============ COST PRICE BLOCK ============ */
+.cost-price-card {
+  background: linear-gradient(135deg, var(--color-primary-light) 0%, var(--color-surface) 60%);
+  border: 1px solid var(--color-primary);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.cost-price-card .cp-title {
+  font-size: var(--text-base); font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: var(--space-2);
+  display: flex; align-items: center; gap: var(--space-2);
+}
+.cost-price-card .cp-sub {
+  font-size: var(--text-sm); color: var(--color-text-muted);
+  margin-bottom: var(--space-3); line-height: 1.45;
+}
+.cost-price-card .cp-form { display: flex; gap: var(--space-2); align-items: end; }
+.cost-price-card .cp-form .form-group { flex: 1; margin: 0; }
+.cost-price-card .cp-form .btn-primary { width: auto; padding: 0 var(--space-4); height: 42px; }
+.cost-price-card .cp-saved {
+  margin-top: var(--space-3); font-size: var(--text-sm);
+  color: var(--color-success); display: none;
+}
+.cost-price-card .cp-saved.show { display: block; }
+.cost-price-card .cp-help { font-size: var(--text-xs); color: var(--color-text-faint); margin-top: var(--space-2); }

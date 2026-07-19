@@ -44,6 +44,7 @@ class Grade(Base):
     service_factor: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0.5)
     has_plan: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     plan_margin: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, default=None)
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -113,3 +114,28 @@ class PayrollRecord(Base):
 
     user: Mapped["User"] = relationship("User", back_populates="payrolls")
     grade: Mapped["Grade"] = relationship("Grade", back_populates="payrolls")
+
+
+class CostPriceRecord(Base):
+    __tablename__ = "cost_price_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    period: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    cost_price: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["User"] = relationship("User")
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
+    code_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, default=None)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+
+    user: Mapped["User"] = relationship("User")

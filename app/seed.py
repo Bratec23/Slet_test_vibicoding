@@ -12,6 +12,7 @@ GRADES_SEED = [
         "service_factor": 0.5,
         "has_plan": False,
         "plan_margin": None,
+        "sort_order": 1,
         "tiers": [],
     },
     {
@@ -22,6 +23,7 @@ GRADES_SEED = [
         "service_factor": 0.5,
         "has_plan": True,
         "plan_margin": 230000,
+        "sort_order": 2,
         "tiers": [(0, 0), (90, 4), (101, 5), (130, 6), (150, 7), (200, 9)],
     },
     {
@@ -32,6 +34,7 @@ GRADES_SEED = [
         "service_factor": 0.5,
         "has_plan": True,
         "plan_margin": 300000,
+        "sort_order": 3,
         "tiers": [(0, 0), (90, 5), (101, 6), (130, 7), (150, 8), (200, 10)],
     },
     {
@@ -42,6 +45,7 @@ GRADES_SEED = [
         "service_factor": 0.5,
         "has_plan": True,
         "plan_margin": 370000,
+        "sort_order": 4,
         "tiers": [(0, 0), (90, 3), (101, 6), (130, 10), (150, 12), (200, 14)],
     },
     {
@@ -52,6 +56,7 @@ GRADES_SEED = [
         "service_factor": 0.5,
         "has_plan": True,
         "plan_margin": 420000,
+        "sort_order": 5,
         "tiers": [(0, 0), (90, 3), (101, 5), (130, 10), (150, 12), (200, 14)],
     },
 ]
@@ -82,6 +87,12 @@ def seed(db: Session) -> None:
             db.flush()
             for min_pct, bonus_pct in tiers_data:
                 db.add(GradeTier(grade_id=grade.id, min_pct=min_pct, bonus_percent=bonus_pct))
+        db.flush()
+    else:
+        for g in GRADES_SEED:
+            existing = db.get(Grade, g["id"])
+            if existing:
+                existing.sort_order = g["sort_order"]
         db.flush()
 
     db.commit()

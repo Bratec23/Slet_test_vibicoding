@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import Department, PayrollRecord, User
+from app.models import CostPriceRecord, Department, PayrollRecord, User
 from app.routers.auth import get_current_head
 
 
@@ -22,6 +22,16 @@ def _latest_record_for(user_id: int, period: str, db: Session) -> Optional[Payro
         .order_by(PayrollRecord.created_at.desc())
         .limit(1)
     )
+
+
+def _cost_price_for(user_id: int, period: str, db: Session) -> float:
+    row = db.scalar(
+        select(CostPriceRecord)
+        .where(CostPriceRecord.user_id == user_id, CostPriceRecord.period == period)
+        .order_by(CostPriceRecord.created_at.desc())
+        .limit(1)
+    )
+    return float(row.cost_price) if row else 0.0
 
 
 def _calc_metrics(rec: PayrollRecord, cost_price: float = 0.0) -> dict:
@@ -129,7 +139,8 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
             record=rec_dict,
         ))
         if rec:
-            cm = _calc_metrics(rec)
+            cp = _cost_price_for(m.id, period, db)
+            cm = _calc_metrics(rec, cp)
             metrics.append(MetricsRowOut(
                 user_id=m.id, full_name=m.full_name, has_record=True,
                 **cm, fot_status=_fot_status(cm["fot_margin_pct"]),
@@ -217,14 +228,15 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
                 profitability_pct=None, fot_margin_pct=None, fot_status=None, has_record=False,
             ))
             continue
-        cm = _calc_metrics(rec, item.cost_price)
+        cp = item.cost_price if item.cost_price > 0 else _cost_price_for(user.id, payload.period, db)
+        cm = _calc_metrics(rec, cp)
         rows.append(ProfitabilityRowOut(
-            user_id=user.id, full_name=user.full_name, cost_price=item.cost_price,
+            user_id=user.id, full_name=user.full_name, cost_price=cp,
             has_record=True, **cm, fot_status=_fot_status(cm["fot_margin_pct"]),
         ))
         for k in ("margin", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "profit"):
             totals[k] += cm[k]
-        totals["cost_price"] += item.cost_price
+        totals["cost_price"] += cp
         totals["managers_with_data"] += 1
     for k in list(totals.keys()):
         if k != "managers_with_data":
@@ -250,14 +262,16 @@ def costs(period: str = Query(...), db: Session = Depends(get_db), head: User = 
     for m in managers:
         rec = _latest_record_for(m.id, period, db)
         office = settings.OFFICE_COST_PER_EMPLOYEE
+        cp = _cost_price_for(m.id, period, db)
         row = {
             "user_id": m.id, "full_name": m.full_name, "office": office,
+            "cost_price": cp,
             "has_record": False, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0,
             "vat": 0.0, "margin": 0.0, "fot_margin_pct": None, "fot_status": None,
             "labor_cost": 0.0, "operating_cost": 0.0,
         }
         if rec:
-            cm = _calc_metrics(rec)
+            cm = _calc_metrics(rec, cp)
             row.update({
                 "has_record": True, "gross": cm["gross"], "ndfl": cm["ndfl"],
                 "insurance": cm["insurance"], "vat": cm["vat"], "margin": cm["margin"],
@@ -324,7 +338,8 @@ def history(from_period: str = Query(..., alias="from"), to_period: str = Query(
         for m in managers:
             rec = _latest_record_for(m.id, p, db)
             if rec:
-                cm = _calc_metrics(rec)
+                cp = _cost_price_for(m.id, p, db)
+                cm = _calc_metrics(rec, cp)
                 margins += cm["margin"]; gross += cm["gross"]; profit += cm["profit"]
                 if cm["fot_margin_pct"] is not None:
                     fot_pct_sum += cm["fot_margin_pct"]; fot_count += 1
@@ -341,7 +356,8 @@ def history(from_period: str = Query(..., alias="from"), to_period: str = Query(
         for p in periods:
             rec = _latest_record_for(m.id, p, db)
             if rec:
-                cm = _calc_metrics(rec)
+                cp = _cost_price_for(m.id, p, db)
+                cm = _calc_metrics(rec, cp)
                 per_period.append({
                     "period": p, "margin": cm["margin"], "profit": cm["profit"],
                     "profitability_pct": cm["profitability_pct"],

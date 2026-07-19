@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+import secrets
 
 import bcrypt
 from jose import JWTError, jwt
@@ -16,6 +17,10 @@ def verify_password(password: str, password_hash: str) -> bool:
         return bcrypt.checkpw(password.encode("utf-8"), password_hash.encode("utf-8"))
     except (ValueError, TypeError):
         return False
+
+
+def generate_reset_code() -> str:
+    return f"{secrets.randbelow(1000000):06d}"
 
 
 def create_access_token(subject: str, expires_minutes: int | None = None) -> str:

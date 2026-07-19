@@ -1,7 +1,7 @@
 from typing import List, Optional
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy import select
@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.export import generate_payroll_xlsx
-from app.models import Grade, GradeTier, PayrollRecord, User
+from app.models import CostPriceRecord, Grade, GradeTier, PayrollRecord, User
 from app.routers.auth import get_current_user
 
 
@@ -244,3 +244,61 @@ def export_record(record_id: int, db: Session = Depends(get_db), user: User = De
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": disposition},
     )
+
+
+class CostPriceIn(BaseModel):
+    period: str = Field(description="ГГГГ-ММ, например 2026-07")
+    cost_price: float = Field(ge=0, default=0)
+
+
+class CostPriceOut(BaseModel):
+    period: str
+    cost_price: float
+    updated_at: str
+
+
+@router.post("/cost-price", response_model=CostPriceOut)
+def save_cost_price(payload: CostPriceIn, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    existing = db.scalar(
+        select(CostPriceRecord).where(
+            CostPriceRecord.user_id == user.id,
+            CostPriceRecord.period == payload.period,
+        )
+    )
+    if existing:
+        existing.cost_price = payload.cost_price
+    else:
+        existing = CostPriceRecord(
+            user_id=user.id,
+            period=payload.period,
+            cost_price=payload.cost_price,
+        )
+        db.add(existing)
+    db.commit()
+    db.refresh(existing)
+    return CostPriceOut(
+        period=existing.period,
+        cost_price=float(existing.cost_price),
+        updated_at=existing.created_at.strftime("%d.%m.%Y %H:%M") if existing.created_at else "",
+    )
+
+
+@router.get("/cost-price", response_model=List[CostPriceOut])
+def list_cost_price(
+    period: Optional[str] = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    stmt = select(CostPriceRecord).where(CostPriceRecord.user_id == user.id)
+    if period:
+        stmt = stmt.where(CostPriceRecord.period == period)
+    stmt = stmt.order_by(CostPriceRecord.period.desc())
+    rows = db.scalars(stmt).all()
+    return [
+        CostPriceOut(
+            period=r.period,
+            cost_price=float(r.cost_price),
+            updated_at=r.created_at.strftime("%d.%m.%Y %H:%M") if r.created_at else "",
+        )
+        for r in rows
+    ]

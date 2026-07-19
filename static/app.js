@@ -60,8 +60,10 @@ const App = (() => {
     const role = document.querySelector('input[name="role"]:checked').value;
     const gradeGroup = $("#grade-group");
     if (gradeGroup) gradeGroup.style.display = role === "manager" ? "block" : "none";
+    const headPwGroup = $("#head-password-group");
+    if (headPwGroup) headPwGroup.style.display = role === "head" ? "block" : "none";
     const pw = $("#password");
-    pw.placeholder = "Введите пароль";
+    pw.placeholder = "Минимум 6 символов, буква + цифра";
   }
 
   async function loadCatalogForSignup() {
@@ -79,7 +81,8 @@ const App = (() => {
   }
   function renderGradeSelect() {
     const sel = $("#grade");
-    sel.innerHTML = '<option value="">— Выберите грейд —</option>' + gradesCache.map(g => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("");
+    const sorted = gradesCache.slice().sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0));
+    sel.innerHTML = '<option value="">— Выберите грейд —</option>' + sorted.map((g, i) => `<option value="${g.id}">${i + 1}. ${escapeHtml(g.name)}</option>`).join("");
   }
 
   async function onDeptChange() {
@@ -106,10 +109,15 @@ const App = (() => {
         const posId = parseInt($("#pos").value);
         const gradeId = $("#grade").value || null;
         const role = document.querySelector('input[name="role"]:checked').value;
+        const headPw = $("#head-password").value;
         if (!full_name) { showAuthError("Введите ФИО"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
         if (!deptId || !posId) { showAuthError("Выберите отдел и должность"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
         if (role === "manager" && !gradeId) { showAuthError("Выберите грейд"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
-        const data = await api("/api/auth/register", { method: "POST", auth: false, body: { email, password, full_name, department_id: deptId, position_id: posId, grade_id: gradeId, role } });
+        if (role === "head" && !headPw) { showAuthError("Введите пароль подтверждения руководителя"); btn.disabled = false; btn.textContent = "Зарегистрироваться"; return; }
+        const payload = { email, password, full_name, department_id: deptId, position_id: posId, role };
+        if (role === "manager") payload.grade_id = gradeId;
+        if (role === "head") payload.head_register_password = headPw;
+        const data = await api("/api/auth/register", { method: "POST", auth: false, body: payload });
         setSession(data.access_token, data.user);
         enterApp();
       } else {
@@ -188,12 +196,50 @@ const App = (() => {
     document.querySelectorAll(".page").forEach(p => p.style.display = "none");
     const page = $(`#page-${route}`);
     if (page) page.style.display = "block";
-    if (route === "payroll") { attachAllMasksIn($("#page-payroll")); loadGradePill(); loadHistory(); }
+    if (route === "payroll") { attachAllMasksIn($("#page-payroll")); loadGradePill(); loadHistory(); initCostPriceBlock(); }
     if (route === "profile") { loadProfile(); setTimeout(() => attachAllMasksIn($("#page-profile").parentNode), 50); }
     if (route === "head-dashboard") { loadDashboard(); }
     if (route === "head-profitability") { loadProfitForm(); setTimeout(attachMasksProfit, 50); }
     if (route === "head-costs") { loadCosts(); }
     if (route === "head-analytics") { loadAnalytics(); }
+  }
+
+  function initCostPriceBlock() {
+    const periodInput = $("#cp-period");
+    if (!periodInput) return;
+    const now = new Date().toISOString().slice(0, 7);
+    periodInput.value = now;
+    loadCostPriceForPeriod(now);
+    periodInput.addEventListener("change", () => loadCostPriceForPeriod(periodInput.value));
+    const cpValueEl = $("#cp-value");
+    if (cpValueEl && !cpValueEl.dataset.maskAttached) attachNumberMask(cpValueEl);
+  }
+
+  async function loadCostPriceForPeriod(period) {
+    if (!period) return;
+    try {
+      const rows = await api(`/api/payroll/cost-price?period=${encodeURIComponent(period)}`);
+      const cpValue = $("#cp-value");
+      if (rows && rows.length) {
+        cpValue.dataset.raw = String(rows[0].cost_price);
+        cpValue.value = formatNumber(rows[0].cost_price);
+      } else {
+        cpValue.dataset.raw = "0";
+        cpValue.value = formatNumber(0);
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  async function saveCostPrice() {
+    const period = ($("#cp-period").value || "").trim();
+    const cpValue = parseNumInput($("#cp-value"));
+    if (!period) { toast("Выберите период", "error"); return; }
+    try {
+      await api("/api/payroll/cost-price", { method: "POST", body: { period, cost_price: cpValue } });
+      const savedEl = $("#cp-saved");
+      if (savedEl) { savedEl.classList.add("show"); setTimeout(() => savedEl.classList.remove("show"), 3000); }
+      toast("Себестоимость сохранена", "success");
+    } catch (e) { toast(e.message || "Ошибка сохранения", "error"); }
   }
 
   function attachMasksProfit() {
@@ -1163,16 +1209,103 @@ const App = (() => {
   function toggleTheme() { const html = document.documentElement; const next = html.getAttribute("data-theme") === "dark" ? "light" : "dark"; html.setAttribute("data-theme", next); localStorage.setItem("bitserves_theme", next); }
   function initTheme() { const saved = localStorage.getItem("bitserves_theme"); if (saved) document.documentElement.setAttribute("data-theme", saved); }
 
+  let forgotEmailCache = "";
+
+  function openForgotPassword() {
+    $("#forgot-modal").style.display = "flex";
+    forgotGoToStep(1);
+    $("#forgot-email").value = $("#email").value || "";
+    setTimeout(() => $("#forgot-email").focus(), 50);
+  }
+  function closeForgotPassword() {
+    $("#forgot-modal").style.display = "none";
+    ["#forgot-email", "#forgot-code", "#forgot-new-password", "#forgot-new-password2"].forEach(s => { const el = $(s); if (el) el.value = ""; });
+    ["#forgot-error", "#forgot-error-2", "#forgot-error-3"].forEach(s => { const el = $(s); if (el) el.style.display = "none"; });
+  }
+  function forgotGoToStep(n) {
+    [1, 2, 3, 4].forEach(i => { const el = $(`#forgot-step-${i}`); if (el) el.style.display = "none"; });
+    const target = $(`#forgot-step-${n}`);
+    if (target) target.style.display = "block";
+  }
+  function forgotBackToStep1() { forgotGoToStep(1); $("#forgot-code").value = ""; }
+
+  async function sendResetCode() {
+    const email = ($("#forgot-email").value || "").trim();
+    const errEl = $("#forgot-error");
+    errEl.style.display = "none";
+    if (!email) { errEl.textContent = "Введите почту"; errEl.style.display = "block"; return; }
+    const btn = $("#forgot-send-btn");
+    btn.disabled = true; const oldText = btn.textContent; btn.textContent = "Отправка…";
+    try {
+      const r = await api("/api/auth/forgot-password", { method: "POST", auth: false, body: { email } });
+      forgotEmailCache = email.toLowerCase();
+      $("#forgot-email-show").textContent = email;
+      $("#forgot-ttl").textContent = r.ttl_minutes || 15;
+      forgotGoToStep(2);
+      setTimeout(() => $("#forgot-code").focus(), 50);
+      toast("Код отправлен. Для разработки смотрите лог сервера", "info");
+    } catch (e) {
+      errEl.textContent = e.message || "Ошибка";
+      errEl.style.display = "block";
+    } finally {
+      btn.disabled = false; btn.textContent = oldText;
+    }
+  }
+
+  async function verifyResetCode() {
+    const code = ($("#forgot-code").value || "").trim();
+    const errEl = $("#forgot-error-2");
+    errEl.style.display = "none";
+    if (!/^\d{6}$/.test(code)) { errEl.textContent = "Введите 6 цифр"; errEl.style.display = "block"; return; }
+    const btn = $("#forgot-verify-btn");
+    btn.disabled = true; const oldText = btn.textContent; btn.textContent = "Проверка…";
+    try {
+      await api("/api/auth/verify-reset-code", { method: "POST", auth: false, body: { email: forgotEmailCache, code } });
+      forgotGoToStep(3);
+      setTimeout(() => $("#forgot-new-password").focus(), 50);
+    } catch (e) {
+      errEl.textContent = e.message || "Неверный код";
+      errEl.style.display = "block";
+    } finally {
+      btn.disabled = false; btn.textContent = oldText;
+    }
+  }
+
+  async function resetPassword() {
+    const pw1 = $("#forgot-new-password").value;
+    const pw2 = $("#forgot-new-password2").value;
+    const code = ($("#forgot-code").value || "").trim();
+    const errEl = $("#forgot-error-3");
+    errEl.style.display = "none";
+    if (!pw1 || pw1.length < 6) { errEl.textContent = "Пароль не короче 6 символов"; errEl.style.display = "block"; return; }
+    if (!/[A-Za-zА-Яа-я]/.test(pw1) || !/\d/.test(pw1)) { errEl.textContent = "Пароль должен содержать букву и цифру"; errEl.style.display = "block"; return; }
+    if (pw1 !== pw2) { errEl.textContent = "Пароли не совпадают"; errEl.style.display = "block"; return; }
+    const btn = $("#forgot-reset-btn");
+    btn.disabled = true; const oldText = btn.textContent; btn.textContent = "Сохранение…";
+    try {
+      await api("/api/auth/reset-password", { method: "POST", auth: false, body: { email: forgotEmailCache, code, new_password: pw1 } });
+      forgotGoToStep(4);
+      toast("Пароль сброшен", "success");
+    } catch (e) {
+      errEl.textContent = e.message || "Ошибка";
+      errEl.style.display = "block";
+    } finally {
+      btn.disabled = false; btn.textContent = oldText;
+    }
+  }
+
   async function init() {
     initTheme();
     document.addEventListener("click", (e) => {
       if (e.target.classList && e.target.classList.contains("modal-bg")) {
         e.target.remove();
       }
+      if (e.target.id === "forgot-modal") closeForgotPassword();
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         document.querySelectorAll(".modal-bg.visible").forEach(m => m.remove());
+        if ($("#forgot-modal").style.display === "flex") closeForgotPassword();
       }
     });
     try {
@@ -1189,6 +1322,8 @@ const App = (() => {
     showFormula, exportRecord, loadSummary, switchMetric, toggleHistory,
     loadDashboard, loadAnalytics, loadWaterfall, loadProfitForm, calcProfitability,
     loadCosts, showCostFormulas,
+    openForgotPassword, closeForgotPassword, sendResetCode, verifyResetCode, resetPassword, forgotBackToStep1,
+    saveCostPrice,
   };
 })();
 

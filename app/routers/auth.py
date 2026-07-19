@@ -1,19 +1,41 @@
+from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.models import Department, Grade, Position, User
-from app.security import create_access_token, decode_access_token, hash_password, verify_password
+from app.models import Department, Grade, PasswordResetToken, Position, User
+from app.security import (
+    create_access_token,
+    decode_access_token,
+    generate_reset_code,
+    hash_password,
+    verify_password,
+)
 
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+
+
+def _validate_password(v: str) -> str:
+    if not isinstance(v, str):
+        raise ValueError("Пароль обязателен")
+    v = v.strip()
+    if len(v) < 6:
+        raise ValueError("Пароль должен быть не короче 6 символов")
+    if len(v) > 128:
+        raise ValueError("Пароль слишком длинный (макс. 128 символов)")
+    if not any(ch.isalpha() for ch in v):
+        raise ValueError("Пароль должен содержать хотя бы одну букву")
+    if not any(ch.isdigit() for ch in v):
+        raise ValueError("Пароль должен содержать хотя бы одну цифру")
+    return v
 
 
 class RegisterRequest(BaseModel):
@@ -24,11 +46,37 @@ class RegisterRequest(BaseModel):
     position_id: int
     grade_id: Optional[str] = None
     role: Literal["manager", "head"] = "manager"
+    head_register_password: Optional[str] = None
+
+    @field_validator("password")
+    @classmethod
+    def _check_password(cls, v: str) -> str:
+        return _validate_password(v)
+
+    @field_validator("full_name")
+    @classmethod
+    def _check_full_name(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("ФИО обязательно")
+        if len(v) < 2:
+            raise ValueError("ФИО слишком короткое")
+        return v
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, v: str) -> str:
+        return (v or "").strip().lower()
 
 
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, v: str) -> str:
+        return (v or "").strip().lower()
 
 
 class DepartmentBrief(BaseModel):
@@ -147,10 +195,10 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Должность не соответствует отделу")
 
     if payload.role == "head":
-        if payload.password != settings.HEAD_REGISTER_PASSWORD:
+        if not payload.head_register_password or payload.head_register_password != settings.HEAD_REGISTER_PASSWORD:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Неверный пароль",
+                detail="Неверный пароль подтверждения руководителя",
             )
         grade = None
     else:
@@ -207,3 +255,136 @@ def update_me(payload: UpdateMeRequest, db: Session = Depends(get_db), current: 
     db.commit()
     db.refresh(current)
     return _user_out(current)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, v: str) -> str:
+        return (v or "").strip().lower()
+
+
+class VerifyCodeRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6)
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, v: str) -> str:
+        return (v or "").strip().lower()
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
+    code: str = Field(min_length=6, max_length=6)
+    new_password: str = Field(min_length=6, max_length=128)
+
+    @field_validator("email")
+    @classmethod
+    def _check_email(cls, v: str) -> str:
+        return (v or "").strip().lower()
+
+    @field_validator("new_password")
+    @classmethod
+    def _check_password(cls, v: str) -> str:
+        return _validate_password(v)
+
+
+class ForgotOut(BaseModel):
+    sent: bool = True
+    ttl_minutes: int
+
+
+class CodeVerifiedOut(BaseModel):
+    verified: bool = True
+    email: str
+
+
+class ResetOut(BaseModel):
+    reset: bool = True
+    email: str
+
+
+@router.post("/forgot-password", response_model=ForgotOut)
+def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    user = db.scalar(select(User).where(User.email == payload.email.lower()))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь с такой почтой не найден")
+
+    now = datetime.utcnow()
+    expires_at = now + timedelta(minutes=settings.PASSWORD_RESET_CODE_TTL_MINUTES)
+    code = generate_reset_code()
+    code_hash = hash_password(code)
+
+    db.query(PasswordResetToken).filter(
+        PasswordResetToken.user_id == user.id,
+        PasswordResetToken.used_at.is_(None),
+    ).update({"used_at": now}, synchronize_session=False)
+
+    token_row = PasswordResetToken(
+        user_id=user.id,
+        code_hash=code_hash,
+        expires_at=expires_at,
+    )
+    db.add(token_row)
+    db.commit()
+
+    print(f"[PASSWORD RESET] email={user.email} code={code} ttl={settings.PASSWORD_RESET_CODE_TTL_MINUTES}m", flush=True)
+    return ForgotOut(sent=True, ttl_minutes=settings.PASSWORD_RESET_CODE_TTL_MINUTES)
+
+
+@router.post("/verify-reset-code", response_model=CodeVerifiedOut)
+def verify_reset_code(payload: VerifyCodeRequest, db: Session = Depends(get_db)):
+    user = db.scalar(select(User).where(User.email == payload.email.lower()))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+
+    now = datetime.utcnow()
+    rows = db.scalars(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+        .order_by(PasswordResetToken.created_at.desc())
+    ).all()
+    valid = None
+    for r in rows:
+        if r.expires_at < now:
+            continue
+        if verify_password(payload.code, r.code_hash):
+            valid = r
+            break
+    if valid is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный или просроченный код")
+    return CodeVerifiedOut(verified=True, email=user.email)
+
+
+@router.post("/reset-password", response_model=ResetOut)
+def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+    user = db.scalar(select(User).where(User.email == payload.email.lower()))
+    if not user:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
+
+    now = datetime.utcnow()
+    rows = db.scalars(
+        select(PasswordResetToken)
+        .where(PasswordResetToken.user_id == user.id, PasswordResetToken.used_at.is_(None))
+        .order_by(PasswordResetToken.created_at.desc())
+    ).all()
+    valid = None
+    for r in rows:
+        if r.expires_at < now:
+            continue
+        if verify_password(payload.code, r.code_hash):
+            valid = r
+            break
+    if valid is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный или просроченный код")
+
+    user.password_hash = hash_password(payload.new_password)
+    valid.used_at = now
+    db.query(PasswordResetToken).filter(PasswordResetToken.user_id == user.id).update(
+        {"used_at": now}, synchronize_session=False
+    )
+    db.commit()
+    return ResetOut(reset=True, email=user.email)

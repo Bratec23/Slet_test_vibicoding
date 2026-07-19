@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     FOT_MARGIN_NORMAL_PCT: float = 20.0
     FOT_MARGIN_CRITICAL_PCT: float = 25.0
 
+    PASSWORD_RESET_CODE_TTL_MINUTES: int = 15
+
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 

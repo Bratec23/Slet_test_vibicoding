@@ -66,11 +66,74 @@
       </div>
       <div class="form-group">
         <label class="form-label" for="password">Пароль</label>
-        <input class="form-input" id="password" type="password" placeholder="Минимум 6 символов" autocomplete="current-password" required minlength="6">
+        <input class="form-input" id="password" type="password" placeholder="Минимум 6 символов, буква + цифра" autocomplete="current-password" required minlength="6">
+      </div>
+      <div class="form-group" id="head-password-group" style="display:none">
+        <label class="form-label" for="head-password">Пароль подтверждения руководителя</label>
+        <input class="form-input" id="head-password" type="password" placeholder="Пароль для регистрации руководителя" autocomplete="off">
       </div>
       <div id="auth-error" class="auth-error" style="display:none"></div>
       <button class="btn-primary" type="submit" id="auth-submit">Войти в систему</button>
+      <div class="auth-links">
+        <a href="#" id="forgot-link" onclick="App.openForgotPassword(); return false;">Забыли пароль?</a>
+      </div>
     </form>
+  </div>
+</div>
+
+<!-- ============ FORGOT PASSWORD MODAL ============ -->
+<div id="forgot-modal" class="modal-overlay" style="display:none">
+  <div class="modal-card">
+    <button class="modal-close" onclick="App.closeForgotPassword()" aria-label="Закрыть">&times;</button>
+    <div class="modal-title">Сброс пароля</div>
+
+    <!-- Шаг 1: ввод email -->
+    <div id="forgot-step-1" class="forgot-step">
+      <div class="modal-sub">Введите почту — мы отправим 6-значный код подтверждения</div>
+      <div class="form-group">
+        <label class="form-label" for="forgot-email">Почта</label>
+        <input class="form-input" id="forgot-email" type="email" placeholder="manager@company.ru" autocomplete="email">
+      </div>
+      <div id="forgot-error" class="auth-error" style="display:none"></div>
+      <button class="btn-primary" id="forgot-send-btn" onclick="App.sendResetCode()">Отправить код</button>
+    </div>
+
+    <!-- Шаг 2: ввод кода -->
+    <div id="forgot-step-2" class="forgot-step" style="display:none">
+      <div class="modal-sub">Мы отправили 6-значный код на почту <b id="forgot-email-show"></b>. Код действителен <span id="forgot-ttl">15</span> мин.</div>
+      <div class="form-group">
+        <label class="form-label" for="forgot-code">Код подтверждения</label>
+        <input class="form-input forgot-code-input" id="forgot-code" type="text" inputmode="numeric" maxlength="6" placeholder="000000" autocomplete="one-time-code">
+      </div>
+      <div id="forgot-error-2" class="auth-error" style="display:none"></div>
+      <button class="btn-primary" id="forgot-verify-btn" onclick="App.verifyResetCode()">Проверить код</button>
+      <button class="btn-ghost" onclick="App.forgotBackToStep1()">← Изменить почту</button>
+    </div>
+
+    <!-- Шаг 3: новый пароль -->
+    <div id="forgot-step-3" class="forgot-step" style="display:none">
+      <div class="modal-sub">Придумайте новый пароль</div>
+      <div class="form-group">
+        <label class="form-label" for="forgot-new-password">Новый пароль</label>
+        <input class="form-input" id="forgot-new-password" type="password" placeholder="Минимум 6 символов, буква + цифра" autocomplete="new-password">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="forgot-new-password2">Повторите пароль</label>
+        <input class="form-input" id="forgot-new-password2" type="password" placeholder="Повторите пароль" autocomplete="new-password">
+      </div>
+      <div id="forgot-error-3" class="auth-error" style="display:none"></div>
+      <button class="btn-primary" id="forgot-reset-btn" onclick="App.resetPassword()">Сбросить пароль</button>
+    </div>
+
+    <!-- Шаг 4: успех -->
+    <div id="forgot-step-4" class="forgot-step" style="display:none">
+      <div class="modal-success">
+        <div class="modal-success-icon">✓</div>
+        <div class="modal-success-title">Пароль сброшен</div>
+        <div class="modal-sub">Теперь вы можете войти с новым паролем</div>
+        <button class="btn-primary" onclick="App.closeForgotPassword()">Готово</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -181,6 +244,27 @@
 
         <div id="grade-pill" class="grade-info-pill">Загрузка профиля…</div>
 
+        <div class="card cost-price-card" id="cost-price-card">
+          <div class="cp-title">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            Помоги руководителю считать финрез. Заполни Себестоимость 😊
+          </div>
+          <div class="cp-sub">Эти данные не идут в расчёт вашей ЗП. Они сохраняются для аналитики руководителя: прибыль, рентабельность и ФОТ/маржа считаются уже с учётом себестоимости.</div>
+          <div class="cp-form">
+            <div class="form-group">
+              <label class="form-label" for="cp-period">Период</label>
+              <input class="form-input" id="cp-period" type="month" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cp-value">Себестоимость, ₽</label>
+              <input class="form-input number-input" id="cp-value" type="text" inputmode="decimal" value="0">
+            </div>
+            <button class="btn-primary" onclick="App.saveCostPrice()">Сохранить</button>
+          </div>
+          <div class="cp-saved" id="cp-saved">✓ Себестоимость сохранена</div>
+          <div class="cp-help">Подсказка: впишите сумму прямых затрат по вашим продажам за месяц (закупка товара, подрядчики, внешние услуги).</div>
+        </div>
+
         <div class="card payroll-card">
           <div class="card-header">
             <div class="card-title">Параметры расчёта</div>
@@ -192,7 +276,7 @@
           <form id="calc-form" onsubmit="event.preventDefault(); App.calculate();">
             <div class="form-row">
               <div class="form-group"><label class="form-label" for="calc-period">Период (ГГГГ-ММ)</label><input class="form-input" id="calc-period" type="month" required></div>
-              <div class="form-group"><label class="form-label" for="calc-worked">Отработано дней</label><input class="form-input" id="calc-worked" type="number" min="0" max="31" value="21" required></div>
+              <div class="form-group"><label class="form-label" for="calc-worked">Отработано дней</label><input class="form-input" id="calc-worked" type="number" min="0" max="31" value="22" required></div>
               <div class="form-group"><label class="form-label" for="calc-working">Рабочих дней в месяце</label><input class="form-input" id="calc-working" type="number" min="1" max="31" value="22" required></div>
               <div class="form-group"><label class="form-label" for="calc-tax">НДФЛ, %</label><input class="form-input" id="calc-tax" type="number" min="0" max="100" step="0.1" value="13" required></div>
             </div>
