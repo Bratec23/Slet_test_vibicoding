@@ -202,6 +202,162 @@ const App = (() => {
     if (route === "head-profitability") { loadProfitForm(); setTimeout(attachMasksProfit, 50); }
     if (route === "head-costs") { loadCosts(); }
     if (route === "head-analytics") { loadAnalytics(); }
+    if (route === "head-grades") { loadGradesAdmin(); }
+  }
+
+  let gradesAdminCache = [];
+  let editingGradeId = null;
+
+  async function loadGradesAdmin() {
+    const wrap = $("#grades-admin-list");
+    if (!wrap) return;
+    wrap.innerHTML = "Загрузка…";
+    try {
+      gradesAdminCache = await api("/api/admin/grades");
+      renderGradesAdmin();
+    } catch (e) { wrap.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+
+  function renderGradesAdmin() {
+    const wrap = $("#grades-admin-list");
+    if (!gradesAdminCache.length) { wrap.innerHTML = '<div class="empty">Грейдов нет</div>'; return; }
+    wrap.innerHTML = `
+      <table class="data-table">
+        <thead><tr><th>№</th><th>ID</th><th>Название</th><th>Оклад</th><th>%</th><th>Коэф.</th><th>План</th><th>Ступеней</th><th>Статус</th><th></th></tr></thead>
+        <tbody>${gradesAdminCache.map((g, i) => `<tr class="${g.is_active ? "" : "grade-row-archived"}">
+          <td data-label="№" class="tnum">${g.sort_order}</td>
+          <td data-label="ID" class="tnum">${escapeHtml(g.id)}</td>
+          <td data-label="Название">${escapeHtml(g.name)}</td>
+          <td data-label="Оклад" class="tnum">${formatMoney(g.base_salary)}</td>
+          <td data-label="%" class="tnum">${g.bonus_percent}%</td>
+          <td data-label="Коэф." class="tnum">${Number(g.service_factor).toFixed(2)}</td>
+          <td data-label="План" class="tnum">${g.has_plan ? formatMoney(g.plan_margin) : "—"}</td>
+          <td data-label="Ступеней" class="tnum">${(g.tiers||[]).length}</td>
+          <td data-label="Статус"><span class="grade-status-badge ${g.is_active ? "grade-status-active" : "grade-status-archived"}">${g.is_active ? "Активен" : "Архив"}</span></td>
+          <td data-label="" class="row-action">
+            <button class="btn-ghost btn-sm" onclick="App.openGradeEditor('${g.id}')" title="Редактировать">✎</button>
+            ${g.is_active ? `<button class="btn-ghost btn-sm" onclick="App.archiveGrade('${g.id}')" title="Архивировать">🗄</button>` : `<button class="btn-ghost btn-sm" onclick="App.restoreGrade('${g.id}')" title="Восстановить">↩</button>`}
+          </td>
+        </tr>`).join("")}</tbody>
+      </table>`;
+  }
+
+  function openGradeEditor(gradeId) {
+    editingGradeId = gradeId || null;
+    const isEdit = !!gradeId;
+    $("#grade-editor-title").textContent = isEdit ? "Редактирование грейда" : "Новый грейд";
+    const g = isEdit ? gradesAdminCache.find(x => x.id === gradeId) : null;
+    $("#ge-id").value = isEdit ? g.id : "";
+    $("#ge-id").disabled = isEdit;
+    $("#ge-name").value = isEdit ? g.name : "";
+    $("#ge-salary").value = isEdit ? formatNumber(g.base_salary) : formatNumber(0);
+    $("#ge-bonus").value = isEdit ? g.bonus_percent : 0;
+    $("#ge-factor").value = isEdit ? g.service_factor : 0.5;
+    $("#ge-sort").value = isEdit ? g.sort_order : (gradesAdminCache.length + 1);
+    $("#ge-has-plan").checked = isEdit ? g.has_plan : false;
+    $("#ge-plan").value = isEdit && g.plan_margin != null ? formatNumber(g.plan_margin) : formatNumber(0);
+    const tiersList = $("#ge-tiers-list");
+    tiersList.innerHTML = "";
+    if (isEdit && g.tiers && g.tiers.length) {
+      g.tiers.forEach(t => addTierRowWithValue(t.min_pct, t.bonus_percent));
+    }
+    toggleGradePlan();
+    $("#grade-editor-error").style.display = "none";
+    $("#grade-editor-modal").style.display = "flex";
+    attachAllMasksIn($("#grade-editor-modal"));
+  }
+
+  function closeGradeEditor() {
+    $("#grade-editor-modal").style.display = "none";
+    editingGradeId = null;
+  }
+
+  function toggleGradePlan() {
+    const hasPlan = $("#ge-has-plan").checked;
+    const planGroup = $("#ge-plan-group");
+    const tiersSection = $("#ge-tiers-section");
+    if (planGroup) planGroup.style.display = hasPlan ? "block" : "none";
+    if (tiersSection) tiersSection.style.display = hasPlan ? "block" : "none";
+  }
+
+  function addTierRow() { addTierRowWithValue(0, 0); }
+
+  function addTierRowWithValue(minPct, bonusPct) {
+    const list = $("#ge-tiers-list");
+    const row = document.createElement("div");
+    row.className = "tier-row";
+    row.innerHTML = `
+      <div class="form-group"><label class="form-label">Выполнение %</label><input class="form-input tier-min" type="number" min="0" max="1000" step="1" value="${minPct}"></div>
+      <div class="form-group"><label class="form-label">Премия %</label><input class="form-input tier-bonus" type="number" min="0" max="100" step="0.1" value="${bonusPct}"></div>
+      <button class="btn-ghost" onclick="this.parentElement.remove()" title="Удалить">×</button>
+    `;
+    list.appendChild(row);
+  }
+
+  function collectTiers() {
+    const rows = document.querySelectorAll("#ge-tiers-list .tier-row");
+    const tiers = [];
+    rows.forEach(r => {
+      const minPct = parseFloat(r.querySelector(".tier-min").value);
+      const bonusPct = parseFloat(r.querySelector(".tier-bonus").value);
+      if (!isNaN(minPct) && !isNaN(bonusPct)) {
+        tiers.push({ min_pct: minPct, bonus_percent: bonusPct });
+      }
+    });
+    tiers.sort((a, b) => a.min_pct - b.min_pct);
+    return tiers;
+  }
+
+  async function saveGradeFromEditor() {
+    const errEl = $("#grade-editor-error");
+    errEl.style.display = "none";
+    const hasPlan = $("#ge-has-plan").checked;
+    const body = {
+      id: $("#ge-id").value.trim().toLowerCase(),
+      name: $("#ge-name").value.trim(),
+      base_salary: parseNumInput($("#ge-salary")),
+      bonus_percent: parseFloat($("#ge-bonus").value) || 0,
+      service_factor: parseFloat($("#ge-factor").value) || 0,
+      sort_order: parseInt($("#ge-sort").value) || 0,
+      has_plan: hasPlan,
+      plan_margin: hasPlan ? parseNumInput($("#ge-plan")) : null,
+      tiers: hasPlan ? collectTiers() : [],
+    };
+    if (!body.name) { errEl.textContent = "Введите название"; errEl.style.display = "block"; return; }
+    if (!editingGradeId && !body.id) { errEl.textContent = "Введите идентификатор"; errEl.style.display = "block"; return; }
+    try {
+      if (editingGradeId) {
+        await api(`/api/admin/grades/${editingGradeId}`, { method: "PUT", body });
+        toast("Грейд обновлён", "success");
+      } else {
+        await api("/api/admin/grades", { method: "POST", body });
+        toast("Грейд создан", "success");
+      }
+      closeGradeEditor();
+      loadGradesAdmin();
+      try { gradesCache = await api("/api/grades", { auth: false }); } catch {}
+    } catch (e) {
+      errEl.textContent = e.message || "Ошибка"; errEl.style.display = "block";
+    }
+  }
+
+  async function archiveGrade(id) {
+    if (!confirm(`Архивировать грейд "${id}"? Он исчезнет из списка при регистрации менеджеров.`)) return;
+    try {
+      await api(`/api/admin/grades/${id}`, { method: "DELETE" });
+      toast("Грейд архивирован", "success");
+      loadGradesAdmin();
+      gradesCache = await api("/api/grades", { auth: false });
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  async function restoreGrade(id) {
+    try {
+      await api(`/api/admin/grades/${id}/restore`, { method: "POST" });
+      toast("Грейд восстановлен", "success");
+      loadGradesAdmin();
+      gradesCache = await api("/api/grades", { auth: false });
+    } catch (e) { toast(e.message, "error"); }
   }
 
   function initCostPriceBlock() {
@@ -1299,11 +1455,13 @@ const App = (() => {
         e.target.remove();
       }
       if (e.target.id === "forgot-modal") closeForgotPassword();
+      if (e.target.id === "grade-editor-modal") closeGradeEditor();
     });
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") {
         document.querySelectorAll(".modal-bg.visible").forEach(m => m.remove());
         if ($("#forgot-modal").style.display === "flex") closeForgotPassword();
+        if ($("#grade-editor-modal").style.display === "flex") closeGradeEditor();
       }
     });
     try {
@@ -1322,6 +1480,7 @@ const App = (() => {
     loadCosts, showCostFormulas,
     openForgotPassword, closeForgotPassword, sendResetCode, verifyResetCode, resetPassword, forgotBackToStep1,
     saveCostPrice,
+    loadGradesAdmin, openGradeEditor, closeGradeEditor, toggleGradePlan, addTierRow, saveGradeFromEditor, archiveGrade, restoreGrade,
   };
 })();
 

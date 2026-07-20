@@ -8,7 +8,7 @@ from sqlalchemy import text
 
 from app.config import settings
 from app.database import engine, init_db
-from app.routers import auth, catalog, head, payroll
+from app.routers import admin, auth, catalog, head, payroll
 
 
 @asynccontextmanager
@@ -51,5 +51,6 @@ app.include_router(catalog.router)
 app.include_router(auth.router)
 app.include_router(payroll.router)
 app.include_router(head.router)
+app.include_router(admin.router)
 
 app.mount("/", StaticFiles(directory="static", html=True), name="static")
