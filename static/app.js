@@ -236,8 +236,6 @@ const App = (() => {
     if (!period) { toast("Выберите период", "error"); return; }
     try {
       await api("/api/payroll/cost-price", { method: "POST", body: { period, cost_price: cpValue } });
-      const savedEl = $("#cp-saved");
-      if (savedEl) { savedEl.classList.add("show"); setTimeout(() => savedEl.classList.remove("show"), 3000); }
       toast("Себестоимость сохранена", "success");
     } catch (e) { toast(e.message || "Ошибка сохранения", "error"); }
   }

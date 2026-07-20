@@ -1,0 +1,14 @@
+services:
+  bitserves:
+    build: .
+    container_name: bitserves
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - ./.env:/app/.env:ro
+      - ./logs:/app/logs
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000

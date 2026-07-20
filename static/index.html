@@ -244,37 +244,17 @@
 
         <div id="grade-pill" class="grade-info-pill">Загрузка профиля…</div>
 
-        <div class="card cost-price-card" id="cost-price-card">
-          <div class="cp-title">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            Помоги руководителю считать финрез. Заполни Себестоимость 😊
-          </div>
-          <div class="cp-sub">Эти данные не идут в расчёт вашей ЗП. Они сохраняются для аналитики руководителя: прибыль, рентабельность и ФОТ/маржа считаются уже с учётом себестоимости.</div>
-          <div class="cp-form">
-            <div class="form-group">
-              <label class="form-label" for="cp-period">Период</label>
-              <input class="form-input" id="cp-period" type="month" required>
+        <div class="payroll-layout">
+          <div class="card payroll-card">
+            <div class="card-header">
+              <div class="card-title">Параметры расчёта</div>
+              <button class="btn-ghost btn-sm" id="history-toggle" onclick="App.toggleHistory()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
+                Посмотреть историю
+              </button>
             </div>
-            <div class="form-group">
-              <label class="form-label" for="cp-value">Себестоимость, ₽</label>
-              <input class="form-input number-input" id="cp-value" type="text" inputmode="decimal" value="0">
-            </div>
-            <button class="btn-primary" onclick="App.saveCostPrice()">Сохранить</button>
-          </div>
-          <div class="cp-saved" id="cp-saved">✓ Себестоимость сохранена</div>
-          <div class="cp-help">Подсказка: впишите сумму прямых затрат по вашим продажам за месяц (закупка товара, подрядчики, внешние услуги).</div>
-        </div>
-
-        <div class="card payroll-card">
-          <div class="card-header">
-            <div class="card-title">Параметры расчёта</div>
-            <button class="btn-ghost btn-sm" id="history-toggle" onclick="App.toggleHistory()">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><path d="M7 14l4-4 3 3 5-6"/></svg>
-              Посмотреть историю
-            </button>
-          </div>
-          <form id="calc-form" onsubmit="event.preventDefault(); App.calculate();">
-            <div class="form-row">
+            <form id="calc-form" onsubmit="event.preventDefault(); App.calculate();">
+              <div class="form-row">
               <div class="form-group"><label class="form-label" for="calc-period">Период (ГГГГ-ММ)</label><input class="form-input" id="calc-period" type="month" required></div>
               <div class="form-group"><label class="form-label" for="calc-worked">Отработано дней</label><input class="form-input" id="calc-worked" type="number" min="0" max="31" value="22" required></div>
               <div class="form-group"><label class="form-label" for="calc-working">Рабочих дней в месяце</label><input class="form-input" id="calc-working" type="number" min="1" max="31" value="22" required></div>
@@ -291,6 +271,25 @@
             <button class="btn-primary" type="submit">Рассчитать и сохранить</button>
           </form>
           <div id="calc-result" class="calc-result" style="display:none"></div>
+        </div>
+
+        <div class="card cost-price-card" id="cost-price-card">
+          <div class="cp-title">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            Помоги руководителю считать финрез. Заполни Себестоимость 😊
+          </div>
+          <div class="cp-form">
+            <div class="form-group">
+              <label class="form-label" for="cp-period">Период</label>
+              <input class="form-input" id="cp-period" type="month" required>
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="cp-value">Себестоимость, ₽</label>
+              <input class="form-input number-input" id="cp-value" type="text" inputmode="decimal" value="0">
+            </div>
+            <button class="btn-primary" onclick="App.saveCostPrice()">Сохранить</button>
+          </div>
+        </div>
         </div>
 
         <div id="history-collapse" class="card" style="display:none">

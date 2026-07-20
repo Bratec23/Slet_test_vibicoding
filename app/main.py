@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from sqlalchemy import text
 
 from app.config import settings
-from app.database import init_db
+from app.database import engine, init_db
 from app.routers import auth, catalog, head, payroll
 
 
@@ -24,6 +26,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/health", tags=["system"])
+def health():
+    status = "ok"
+    db_ok = True
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+    except Exception:
+        db_ok = False
+        status = "degraded"
+    return {
+        "status": status,
+        "service": settings.APP_NAME,
+        "version": "0.1.0",
+        "time": datetime.now(timezone.utc).isoformat(),
+        "checks": {"database": "ok" if db_ok else "fail"},
+    }
+
 
 app.include_router(catalog.router)
 app.include_router(auth.router)

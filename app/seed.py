@@ -81,8 +81,9 @@ def seed(db: Session) -> None:
 
     if not db.query(Grade).first():
         for g in GRADES_SEED:
-            tiers_data = g.pop("tiers")
-            grade = Grade(**g, is_active=True)
+            tiers_data = g.get("tiers", [])
+            grade_data = {k: v for k, v in g.items() if k != "tiers"}
+            grade = Grade(**grade_data, is_active=True)
             db.add(grade)
             db.flush()
             for min_pct, bonus_pct in tiers_data:

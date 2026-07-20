@@ -1,15 +1,17 @@
 from datetime import datetime, timedelta, timezone
 from typing import Literal, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from pydantic import BaseModel, EmailStr, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.audit import log_event
 from app.config import settings
 from app.database import get_db
-from app.models import Department, Grade, PasswordResetToken, Position, User
+from app.models import Department, Grade, LoginAudit, PasswordResetToken, Position, User
+from app.rate_limit import forgot_limiter, login_limiter, register_limiter, reset_limiter
 from app.security import (
     create_access_token,
     decode_access_token,
@@ -181,21 +183,26 @@ def get_current_head(current: User = Depends(get_current_user)) -> User:
 
 
 @router.post("/register", response_model=TokenOut, status_code=status.HTTP_201_CREATED)
-def register(payload: RegisterRequest, db: Session = Depends(get_db)):
+def register(payload: RegisterRequest, request: Request, db: Session = Depends(get_db)):
+    register_limiter(request)
     existing = db.scalar(select(User).where(User.email == payload.email.lower()))
     if existing:
+        log_event(db, request, "register", payload.email, success=False, detail="email exists")
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Пользователь с такой почтой уже зарегистрирован")
 
     dept = db.get(Department, payload.department_id)
     if not dept or not dept.is_active:
+        log_event(db, request, "register", payload.email, success=False, detail="dept not found")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Отдел не найден")
 
     pos = db.get(Position, payload.position_id)
     if not pos or not pos.is_active or pos.department_id != dept.id:
+        log_event(db, request, "register", payload.email, success=False, detail="position mismatch")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Должность не соответствует отделу")
 
     if payload.role == "head":
         if not payload.head_register_password or payload.head_register_password != settings.HEAD_REGISTER_PASSWORD:
+            log_event(db, request, "register", payload.email, success=False, detail="bad head password")
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Неверный пароль подтверждения руководителя",
@@ -203,9 +210,11 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
         grade = None
     else:
         if not payload.grade_id:
+            log_event(db, request, "register", payload.email, success=False, detail="no grade")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд обязателен для менеджера")
         grade = db.get(Grade, payload.grade_id)
         if not grade or not grade.is_active:
+            log_event(db, request, "register", payload.email, success=False, detail="grade not found")
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден")
 
     user = User(
@@ -221,15 +230,19 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
     token = create_access_token(subject=str(user.id))
+    log_event(db, request, "register", user.email, success=True, user_id=user.id)
     return TokenOut(access_token=token, user=_user_out(user))
 
 
 @router.post("/login", response_model=TokenOut)
-def login(payload: LoginRequest, db: Session = Depends(get_db)):
+def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    login_limiter(request)
     user = db.scalar(select(User).where(User.email == payload.email.lower()))
     if not user or not verify_password(payload.password, user.password_hash):
+        log_event(db, request, "login", payload.email, success=False, user_id=(user.id if user else None), detail="bad password")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверная почта или пароль")
     token = create_access_token(subject=str(user.id))
+    log_event(db, request, "login", user.email, success=True, user_id=user.id)
     return TokenOut(access_token=token, user=_user_out(user))
 
 
@@ -308,9 +321,11 @@ class ResetOut(BaseModel):
 
 
 @router.post("/forgot-password", response_model=ForgotOut)
-def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(payload: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    forgot_limiter(request)
     user = db.scalar(select(User).where(User.email == payload.email.lower()))
     if not user:
+        log_event(db, request, "forgot", payload.email, success=False, detail="user not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь с такой почтой не найден")
 
     now = datetime.utcnow()
@@ -332,13 +347,16 @@ def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db
     db.commit()
 
     print(f"[PASSWORD RESET] email={user.email} code={code} ttl={settings.PASSWORD_RESET_CODE_TTL_MINUTES}m", flush=True)
+    log_event(db, request, "forgot", user.email, success=True, user_id=user.id)
     return ForgotOut(sent=True, ttl_minutes=settings.PASSWORD_RESET_CODE_TTL_MINUTES)
 
 
 @router.post("/verify-reset-code", response_model=CodeVerifiedOut)
-def verify_reset_code(payload: VerifyCodeRequest, db: Session = Depends(get_db)):
+def verify_reset_code(payload: VerifyCodeRequest, request: Request, db: Session = Depends(get_db)):
+    reset_limiter(request)
     user = db.scalar(select(User).where(User.email == payload.email.lower()))
     if not user:
+        log_event(db, request, "verify_code", payload.email, success=False, detail="user not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
 
     now = datetime.utcnow()
@@ -355,14 +373,18 @@ def verify_reset_code(payload: VerifyCodeRequest, db: Session = Depends(get_db))
             valid = r
             break
     if valid is None:
+        log_event(db, request, "verify_code", user.email, success=False, user_id=user.id, detail="bad code")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный или просроченный код")
+    log_event(db, request, "verify_code", user.email, success=True, user_id=user.id)
     return CodeVerifiedOut(verified=True, email=user.email)
 
 
 @router.post("/reset-password", response_model=ResetOut)
-def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)):
+def reset_password(payload: ResetPasswordRequest, request: Request, db: Session = Depends(get_db)):
+    reset_limiter(request)
     user = db.scalar(select(User).where(User.email == payload.email.lower()))
     if not user:
+        log_event(db, request, "reset", payload.email, success=False, detail="user not found")
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Пользователь не найден")
 
     now = datetime.utcnow()
@@ -379,6 +401,7 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
             valid = r
             break
     if valid is None:
+        log_event(db, request, "reset", user.email, success=False, user_id=user.id, detail="bad code")
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Неверный или просроченный код")
 
     user.password_hash = hash_password(payload.new_password)
@@ -387,4 +410,66 @@ def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db))
         {"used_at": now}, synchronize_session=False
     )
     db.commit()
+    log_event(db, request, "reset", user.email, success=True, user_id=user.id)
     return ResetOut(reset=True, email=user.email)
+
+
+class AuditOut(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    email: str
+    event_type: str
+    success: bool
+    ip: str
+    user_agent: str
+    detail: Optional[str] = None
+    created_at: str
+
+
+@router.get("/audit/me", response_model=list[AuditOut])
+def audit_me(
+    db: Session = Depends(get_db),
+    current: User = Depends(get_current_user),
+    limit: int = 50,
+):
+    rows = db.scalars(
+        select(LoginAudit)
+        .where(LoginAudit.user_id == current.id)
+        .order_by(LoginAudit.created_at.desc())
+        .limit(min(limit, 200))
+    ).all()
+    return [_audit_out(r) for r in rows]
+
+
+@router.get("/audit/department", response_model=list[AuditOut], dependencies=[Depends(get_current_head)])
+def audit_department(
+    db: Session = Depends(get_db),
+    head: User = Depends(get_current_head),
+    limit: int = 100,
+):
+    user_ids = [u.id for u in db.scalars(
+        select(User).where(User.department_id == head.department_id)
+    ).all()]
+    if not user_ids:
+        return []
+    rows = db.scalars(
+        select(LoginAudit)
+        .where(LoginAudit.user_id.in_(user_ids))
+        .order_by(LoginAudit.created_at.desc())
+        .limit(min(limit, 500))
+    ).all()
+    return [_audit_out(r) for r in rows]
+
+
+def _audit_out(r: LoginAudit) -> dict:
+    return {
+        "id": r.id,
+        "user_id": r.user_id,
+        "email": r.email,
+        "event_type": r.event_type,
+        "success": bool(r.success),
+        "ip": r.ip,
+        "user_agent": r.user_agent,
+        "detail": r.detail,
+        "created_at": r.created_at.strftime("%d.%m.%Y %H:%M:%S") if r.created_at else "",
+    }
