@@ -6,7 +6,7 @@ from app.models import Department, Grade, GradeTier, Position
 GRADES_SEED = [
     {
         "id": "trainee",
-        "name": "Испытательный срок (пример)",
+        "name": "Испытательный срок",
         "base_salary": 30000,
         "bonus_percent": 3.0,
         "service_factor": 0.5,
@@ -17,7 +17,7 @@ GRADES_SEED = [
     },
     {
         "id": "mgr1",
-        "name": "Менеджер, 1 грейд (пример)",
+        "name": "Менеджер, 1 грейд",
         "base_salary": 35000,
         "bonus_percent": 0.0,
         "service_factor": 0.5,
@@ -28,7 +28,7 @@ GRADES_SEED = [
     },
     {
         "id": "mgr2",
-        "name": "Менеджер, 2 грейд (пример)",
+        "name": "Менеджер, 2 грейд",
         "base_salary": 35000,
         "bonus_percent": 0.0,
         "service_factor": 0.5,
@@ -39,7 +39,7 @@ GRADES_SEED = [
     },
     {
         "id": "lead1",
-        "name": "Ведущий менеджер, 1 грейд (пример)",
+        "name": "Ведущий менеджер, 1 грейд",
         "base_salary": 40000,
         "bonus_percent": 0.0,
         "service_factor": 0.5,
@@ -50,7 +50,7 @@ GRADES_SEED = [
     },
     {
         "id": "lead2",
-        "name": "Ведущий менеджер, 2 грейд (пример)",
+        "name": "Ведущий менеджер, 2 грейд",
         "base_salary": 45000,
         "bonus_percent": 0.0,
         "service_factor": 0.5,
