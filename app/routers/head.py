@@ -36,6 +36,7 @@ def _cost_price_for(user_id: int, period: str, db: Session) -> float:
 
 def _calc_metrics(rec: PayrollRecord, cost_price: float = 0.0) -> dict:
     margin = round(float(rec.service_margin) + float(rec.goods_margin), 2)
+    margin_net = round(margin * (1 - settings.VAT_RATE_PERCENT / 100), 2)
     gross = float(rec.gross_pay)
     ndfl = float(rec.tax_amount)
     insurance = round(gross * settings.INSURANCE_RATE_PERCENT / 100, 2)
@@ -43,14 +44,15 @@ def _calc_metrics(rec: PayrollRecord, cost_price: float = 0.0) -> dict:
     office = settings.OFFICE_COST_PER_EMPLOYEE
     labor_cost = round(gross + ndfl + insurance, 2)
     operating_cost = round(vat + office, 2)
-    total_cost = round(labor_cost + operating_cost + cost_price, 2)
-    profit = round(margin - total_cost, 2)
-    profitability_pct = round(profit / margin * 100, 2) if margin > 0 else None
-    fot_margin_pct = round(gross / margin * 100, 2) if margin > 0 else None
+    total_cost = round(cost_price, 2)
+    profit = round(margin_net - cost_price, 2)
+    profitability_pct = round(profit / margin_net * 100, 2) if margin_net > 0 else None
+    fot_margin_pct = round(gross / margin_net * 100, 2) if margin_net > 0 else None
     return {
-        "margin": margin, "gross": gross, "ndfl": ndfl, "insurance": insurance,
+        "margin": margin, "margin_net": margin_net, "gross": gross, "ndfl": ndfl, "insurance": insurance,
         "vat": vat, "office": office, "labor_cost": labor_cost, "operating_cost": operating_cost,
-        "total_cost": total_cost, "profit": profit, "profitability_pct": profitability_pct,
+        "total_cost": total_cost, "cost_price": round(cost_price, 2),
+        "profit": profit, "profitability_pct": profitability_pct,
         "fot_margin_pct": fot_margin_pct,
     }
 
@@ -79,6 +81,7 @@ class MetricsRowOut(BaseModel):
     full_name: str
     has_record: bool
     margin: float = 0
+    margin_net: float = 0
     gross: float = 0
     ndfl: float = 0
     insurance: float = 0
@@ -86,6 +89,8 @@ class MetricsRowOut(BaseModel):
     office: float = 0
     labor_cost: float = 0
     operating_cost: float = 0
+    cost_price: float = 0
+    total_cost: float = 0
     profit: float = 0
     profitability_pct: Optional[float] = None
     fot_margin_pct: Optional[float] = None
@@ -112,9 +117,9 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
     members: list[TeamMemberOut] = []
     metrics: list[MetricsRowOut] = []
     totals = {
-        "margin": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
+        "margin": 0.0, "margin_net": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
         "office": 0.0, "labor_cost": 0.0, "operating_cost": 0.0, "total_cost": 0.0,
-        "profit": 0.0, "managers_with_data": 0,
+        "cost_price": 0.0, "profit": 0.0, "managers_with_data": 0,
     }
     for m in members_q:
         rec = _latest_record_for(m.id, period, db)
@@ -145,7 +150,7 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
                 user_id=m.id, full_name=m.full_name, has_record=True,
                 **cm, fot_status=_fot_status(cm["fot_margin_pct"]),
             ))
-            for k in ("margin", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "profit"):
+            for k in ("margin", "margin_net", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "cost_price", "profit"):
                 totals[k] += cm[k]
             totals["managers_with_data"] += 1
         else:
@@ -153,11 +158,11 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
     for k in list(totals.keys()):
         if k != "managers_with_data":
             totals[k] = round(totals[k], 2)
-    totals["profitability_pct"] = round(totals["profit"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
-    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["profitability_pct"] = round(totals["profit"] / totals["margin_net"] * 100, 2) if totals["margin_net"] > 0 else None
+    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin_net"] * 100, 2) if totals["margin_net"] > 0 else None
     totals["fot_status"] = _fot_status(totals["fot_margin_pct"])
     kpis = {
-        "margin": totals["margin"], "gross": totals["gross"], "profit": totals["profit"],
+        "margin": totals["margin"], "margin_net": totals["margin_net"], "gross": totals["gross"], "profit": totals["profit"],
         "profitability_pct": totals["profitability_pct"],
         "fot_margin_pct": totals["fot_margin_pct"], "fot_status": totals["fot_status"],
         "managers_total": len(members_q), "managers_with_data": totals["managers_with_data"],
@@ -183,6 +188,7 @@ class ProfitabilityRowOut(BaseModel):
     full_name: str
     cost_price: float
     margin: float
+    margin_net: float
     gross: float
     ndfl: float
     insurance: float
@@ -211,7 +217,7 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
     dept_name = dept.name if dept else "—"
     rows: list[ProfitabilityRowOut] = []
     totals = {
-        "margin": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
+        "margin": 0.0, "margin_net": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
         "office": 0.0, "labor_cost": 0.0, "operating_cost": 0.0, "total_cost": 0.0,
         "profit": 0.0, "cost_price": 0.0, "managers_with_data": 0,
     }
@@ -223,26 +229,27 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
         if not rec:
             rows.append(ProfitabilityRowOut(
                 user_id=user.id, full_name=user.full_name, cost_price=item.cost_price,
-                margin=0, gross=0, ndfl=0, insurance=0, vat=0, office=0,
+                margin=0, margin_net=0, gross=0, ndfl=0, insurance=0, vat=0, office=0,
                 labor_cost=0, operating_cost=0, total_cost=0, profit=0,
                 profitability_pct=None, fot_margin_pct=None, fot_status=None, has_record=False,
             ))
             continue
         cp = item.cost_price if item.cost_price > 0 else _cost_price_for(user.id, payload.period, db)
         cm = _calc_metrics(rec, cp)
+        cm.pop("cost_price", None)
         rows.append(ProfitabilityRowOut(
             user_id=user.id, full_name=user.full_name, cost_price=cp,
             has_record=True, **cm, fot_status=_fot_status(cm["fot_margin_pct"]),
         ))
-        for k in ("margin", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "profit"):
+        for k in ("margin", "margin_net", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "profit"):
             totals[k] += cm[k]
         totals["cost_price"] += cp
         totals["managers_with_data"] += 1
     for k in list(totals.keys()):
         if k != "managers_with_data":
             totals[k] = round(totals[k], 2)
-    totals["profitability_pct"] = round(totals["profit"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
-    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["profitability_pct"] = round(totals["profit"] / totals["margin_net"] * 100, 2) if totals["margin_net"] > 0 else None
+    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin_net"] * 100, 2) if totals["margin_net"] > 0 else None
     totals["fot_status"] = _fot_status(totals["fot_margin_pct"])
     return ProfitabilityResponse(period=payload.period, department_name=dept_name, rows=rows, totals=totals)
 
@@ -257,7 +264,8 @@ def costs(period: str = Query(...), db: Session = Depends(get_db), head: User = 
     items = []
     totals = {
         "managers": 0, "office": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0,
-        "vat": 0.0, "margin": 0.0, "labor_cost": 0.0, "operating_cost": 0.0,
+        "vat": 0.0, "margin": 0.0, "margin_net": 0.0, "cost_price": 0.0,
+        "profit": 0.0, "labor_cost": 0.0, "operating_cost": 0.0,
     }
     for m in managers:
         rec = _latest_record_for(m.id, period, db)
@@ -267,7 +275,8 @@ def costs(period: str = Query(...), db: Session = Depends(get_db), head: User = 
             "user_id": m.id, "full_name": m.full_name, "office": office,
             "cost_price": cp,
             "has_record": False, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0,
-            "vat": 0.0, "margin": 0.0, "fot_margin_pct": None, "fot_status": None,
+            "vat": 0.0, "margin": 0.0, "margin_net": 0.0, "profit": 0.0,
+            "fot_margin_pct": None, "fot_status": None,
             "labor_cost": 0.0, "operating_cost": 0.0,
         }
         if rec:
@@ -275,20 +284,24 @@ def costs(period: str = Query(...), db: Session = Depends(get_db), head: User = 
             row.update({
                 "has_record": True, "gross": cm["gross"], "ndfl": cm["ndfl"],
                 "insurance": cm["insurance"], "vat": cm["vat"], "margin": cm["margin"],
+                "margin_net": cm["margin_net"], "profit": cm["profit"],
                 "fot_margin_pct": cm["fot_margin_pct"], "fot_status": _fot_status(cm["fot_margin_pct"]),
                 "labor_cost": cm["labor_cost"], "operating_cost": cm["operating_cost"],
             })
             totals["gross"] += cm["gross"]; totals["ndfl"] += cm["ndfl"]
             totals["insurance"] += cm["insurance"]; totals["vat"] += cm["vat"]
-            totals["margin"] += cm["margin"]
+            totals["margin"] += cm["margin"]; totals["margin_net"] += cm["margin_net"]
+            totals["profit"] += cm["profit"]
         totals["office"] += office
+        totals["cost_price"] += cp
         totals["managers"] += 1
         items.append(row)
-    for k in ("office", "gross", "ndfl", "insurance", "vat", "margin"):
+    for k in ("office", "gross", "ndfl", "insurance", "vat", "margin", "margin_net", "cost_price", "profit"):
         totals[k] = round(totals[k], 2)
     totals["labor_cost"] = round(totals["gross"] + totals["ndfl"] + totals["insurance"], 2)
     totals["operating_cost"] = round(totals["vat"] + totals["office"], 2)
-    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin"] * 100, 2) if totals["margin"] > 0 else None
+    totals["profitability_pct"] = round(totals["profit"] / totals["margin_net"] * 100, 2) if totals["margin_net"] > 0 else None
+    totals["fot_margin_pct"] = round(totals["gross"] / totals["margin_net"] * 100, 2) if totals["margin_net"] > 0 else None
     totals["fot_status"] = _fot_status(totals["fot_margin_pct"])
     return {
         "period": period, "department_name": dept_name,
@@ -334,21 +347,23 @@ def history(from_period: str = Query(..., alias="from"), to_period: str = Query(
     by_manager = []
     monthly = []
     for p in periods:
-        margins = 0.0; gross = 0.0; profit = 0.0; fot_pct_sum = 0.0; fot_count = 0
+        margins = 0.0; margins_net = 0.0; gross = 0.0; profit = 0.0; fot_pct_sum = 0.0; fot_count = 0
         for m in managers:
             rec = _latest_record_for(m.id, p, db)
             if rec:
                 cp = _cost_price_for(m.id, p, db)
                 cm = _calc_metrics(rec, cp)
-                margins += cm["margin"]; gross += cm["gross"]; profit += cm["profit"]
+                margins += cm["margin"]; margins_net += cm["margin_net"]
+                gross += cm["gross"]; profit += cm["profit"]
                 if cm["fot_margin_pct"] is not None:
                     fot_pct_sum += cm["fot_margin_pct"]; fot_count += 1
         monthly.append({
             "period": p,
             "margin": round(margins, 2),
+            "margin_net": round(margins_net, 2),
             "gross": round(gross, 2),
             "profit": round(profit, 2),
-            "profitability_pct": round(profit / margins * 100, 2) if margins > 0 else None,
+            "profitability_pct": round(profit / margins_net * 100, 2) if margins_net > 0 else None,
             "fot_margin_pct": round(fot_pct_sum / fot_count, 2) if fot_count > 0 else None,
         })
     for m in managers:
@@ -359,12 +374,13 @@ def history(from_period: str = Query(..., alias="from"), to_period: str = Query(
                 cp = _cost_price_for(m.id, p, db)
                 cm = _calc_metrics(rec, cp)
                 per_period.append({
-                    "period": p, "margin": cm["margin"], "profit": cm["profit"],
+                    "period": p, "margin": cm["margin"], "margin_net": cm["margin_net"],
+                    "profit": cm["profit"],
                     "profitability_pct": cm["profitability_pct"],
                     "fot_margin_pct": cm["fot_margin_pct"],
                 })
             else:
-                per_period.append({"period": p, "margin": 0, "profit": 0, "profitability_pct": None, "fot_margin_pct": None})
+                per_period.append({"period": p, "margin": 0, "margin_net": 0, "profit": 0, "profitability_pct": None, "fot_margin_pct": None})
         by_manager.append({
             "user_id": m.id, "full_name": m.full_name,
             "data": per_period,
