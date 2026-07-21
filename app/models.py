@@ -72,6 +72,7 @@ class User(Base):
     full_name: Mapped[str] = mapped_column(String(255), nullable=False, default="")
     role: Mapped[str] = mapped_column(String(50), nullable=False, default="manager")
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
 
     department_id: Mapped[int] = mapped_column(Integer, ForeignKey("departments.id"), index=True, nullable=False)
     position_id: Mapped[int] = mapped_column(Integer, ForeignKey("positions.id"), nullable=False)

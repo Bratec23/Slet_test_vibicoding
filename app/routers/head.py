@@ -107,7 +107,7 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
     dept = db.get(Department, head.department_id)
     dept_name = dept.name if dept else "—"
     members_q = db.scalars(
-        select(User).where(User.department_id == head.department_id, User.role == "manager").order_by(User.full_name)
+        select(User).where(User.department_id == head.department_id, User.role == "manager", User.is_active.is_(True)).order_by(User.full_name)
     ).all()
     members: list[TeamMemberOut] = []
     metrics: list[MetricsRowOut] = []
@@ -252,7 +252,7 @@ def costs(period: str = Query(...), db: Session = Depends(get_db), head: User = 
     dept = db.get(Department, head.department_id)
     dept_name = dept.name if dept else "—"
     managers = db.scalars(
-        select(User).where(User.department_id == head.department_id, User.role == "manager")
+        select(User).where(User.department_id == head.department_id, User.role == "manager", User.is_active.is_(True))
     ).all()
     items = []
     totals = {
@@ -328,7 +328,7 @@ def history(from_period: str = Query(..., alias="from"), to_period: str = Query(
     dept = db.get(Department, head.department_id)
     dept_name = dept.name if dept else "—"
     managers = db.scalars(
-        select(User).where(User.department_id == head.department_id, User.role == "manager").order_by(User.full_name)
+        select(User).where(User.department_id == head.department_id, User.role == "manager", User.is_active.is_(True)).order_by(User.full_name)
     ).all()
     periods = _period_range(from_period, to_period)
     by_manager = []
@@ -400,7 +400,7 @@ class WaterfallOut(BaseModel):
 def waterfall(period: str = Query(...), db: Session = Depends(get_db), head: User = Depends(get_current_head)):
     prev_p = _prev_period(period)
     managers = db.scalars(
-        select(User).where(User.department_id == head.department_id, User.role == "manager").order_by(User.full_name)
+        select(User).where(User.department_id == head.department_id, User.role == "manager", User.is_active.is_(True)).order_by(User.full_name)
     ).all()
     items: list[WaterfallItemOut] = []
     prev_total = 0.0

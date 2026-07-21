@@ -1,16 +1,21 @@
 from typing import List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.audit import log_event
+from app.config import settings
 from app.database import get_db
-from app.models import Grade, GradeTier, User
+from app.models import Grade, GradeTier, Position, User
 from app.routers.auth import get_current_head
+from app.security import hash_password
 
 
 router = APIRouter(prefix="/api/admin", tags=["admin"])
+
+DEFAULT_RESET_PASSWORD = "changeme123"
 
 
 class TierIn(BaseModel):
@@ -161,3 +166,136 @@ def restore_grade(grade_id: str, db: Session = Depends(get_db), head: User = Dep
     db.commit()
     db.refresh(grade)
     return _grade_out(grade, db)
+
+
+class ManagedUserOut(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    role: str
+    is_active: bool
+    department_id: int
+    department_name: str
+    position_id: int
+    position_name: str
+    grade_id: Optional[str] = None
+    grade_name: Optional[str] = None
+    created_at: str
+
+
+def _managed_user_out(u: User) -> dict:
+    return {
+        "id": u.id,
+        "email": u.email,
+        "full_name": u.full_name,
+        "role": u.role,
+        "is_active": bool(u.is_active),
+        "department_id": u.department_id,
+        "department_name": (u.department.name if u.department else "—"),
+        "position_id": u.position_id,
+        "position_name": (u.position.name if u.position else "—"),
+        "grade_id": u.grade_id,
+        "grade_name": (u.grade.name if u.grade else None),
+        "created_at": (u.created_at.strftime("%d.%m.%Y %H:%M") if u.created_at else ""),
+    }
+
+
+@router.get("/users", response_model=List[ManagedUserOut])
+def list_users(db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    rows = db.scalars(
+        select(User)
+        .where(User.department_id == head.department_id, User.role == "manager")
+        .order_by(User.is_active.desc(), User.full_name)
+    ).all()
+    return [_managed_user_out(u) for u in rows]
+
+
+def _get_managed_user(user_id: int, head: User, db: Session) -> User:
+    u = db.get(User, user_id)
+    if not u or u.department_id != head.department_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Сотрудник не найден в вашем отделе")
+    return u
+
+
+class ChangeGradeIn(BaseModel):
+    grade_id: str = Field(min_length=1, max_length=50)
+
+
+@router.put("/users/{user_id}/grade", response_model=ManagedUserOut)
+def change_user_grade(user_id: int, payload: ChangeGradeIn, request: Request,
+                      db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    u = _get_managed_user(user_id, head, db)
+    grade = db.get(Grade, payload.grade_id)
+    if not grade or not grade.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Грейд не найден или архивирован")
+    old_grade = u.grade_id
+    u.grade_id = grade.id
+    db.commit()
+    db.refresh(u)
+    log_event(db, request, "change_grade", head.email, success=True, user_id=head.id,
+              detail=f"{u.email}: {old_grade} -> {grade.id}")
+    return _managed_user_out(u)
+
+
+class ChangePositionIn(BaseModel):
+    position_id: int
+
+
+@router.put("/users/{user_id}/position", response_model=ManagedUserOut)
+def change_user_position(user_id: int, payload: ChangePositionIn, request: Request,
+                         db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    u = _get_managed_user(user_id, head, db)
+    pos = db.get(Position, payload.position_id)
+    if not pos or not pos.is_active or pos.department_id != u.department_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Должность не найдена или не соответствует отделу")
+    old_pos = u.position_id
+    u.position_id = pos.id
+    db.commit()
+    db.refresh(u)
+    log_event(db, request, "change_position", head.email, success=True, user_id=head.id,
+              detail=f"{u.email}: pos_id {old_pos} -> {pos.id}")
+    return _managed_user_out(u)
+
+
+@router.delete("/users/{user_id}", response_model=ManagedUserOut)
+def deactivate_user(user_id: int, request: Request,
+                    db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    u = _get_managed_user(user_id, head, db)
+    if not u.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Сотрудник уже деактивирован")
+    u.is_active = False
+    db.commit()
+    db.refresh(u)
+    log_event(db, request, "deactivate_user", head.email, success=True, user_id=head.id, detail=u.email)
+    return _managed_user_out(u)
+
+
+@router.post("/users/{user_id}/restore", response_model=ManagedUserOut)
+def restore_user(user_id: int, request: Request,
+                 db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    u = _get_managed_user(user_id, head, db)
+    if u.is_active:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Сотрудник уже активен")
+    u.is_active = True
+    db.commit()
+    db.refresh(u)
+    log_event(db, request, "restore_user", head.email, success=True, user_id=head.id, detail=u.email)
+    return _managed_user_out(u)
+
+
+class ResetUserPasswordOut(BaseModel):
+    user_id: int
+    email: str
+    new_password: str
+
+
+@router.post("/users/{user_id}/reset-password", response_model=ResetUserPasswordOut)
+def reset_user_password(user_id: int, request: Request,
+                        db: Session = Depends(get_db), head: User = Depends(get_current_head)):
+    u = _get_managed_user(user_id, head, db)
+    new_password = DEFAULT_RESET_PASSWORD
+    u.password_hash = hash_password(new_password)
+    db.commit()
+    db.refresh(u)
+    log_event(db, request, "reset_user_password", head.email, success=True, user_id=head.id, detail=u.email)
+    return ResetUserPasswordOut(user_id=u.id, email=u.email, new_password=new_password)

@@ -203,6 +203,7 @@ const App = (() => {
     if (route === "head-costs") { loadCosts(); }
     if (route === "head-analytics") { loadAnalytics(); }
     if (route === "head-grades") { loadGradesAdmin(); }
+    if (route === "head-users") { loadUsersAdmin(); }
   }
 
   let gradesAdminCache = [];
@@ -1354,6 +1355,96 @@ const App = (() => {
     document.body.appendChild(overlay);
   }
 
+  async function loadUsersAdmin() {
+    const el = $("#users-admin-table");
+    if (!el) return;
+    el.innerHTML = '<div class="empty">Загрузка…</div>';
+    try {
+      const rows = await api("/api/admin/users");
+      if (!rows.length) { el.innerHTML = '<div class="empty">В отделе нет менеджеров</div>'; return; }
+      if (!gradesCache.length) gradesCache = await api("/api/grades", { auth: false });
+      const devPositions = positionsCache.filter(p => (getUser() || {}).department && p.department_id === getUser().department.id);
+      const positionsForUser = devPositions.length ? devPositions : await api(`/api/positions?department_id=${getUser().department.id}`, { auth: false });
+      el.innerHTML = `
+        <table class="data-table">
+          <thead><tr><th>ФИО / Email</th><th>Должность</th><th>Грейд</th><th>Статус</th><th>Дата регистрации</th><th>Действия</th></tr></thead>
+          <tbody>${rows.map(u => {
+            const gradeOpts = gradesCache.map(g => `<option value="${g.id}" ${u.grade_id === g.id ? "selected" : ""}>${escapeHtml(g.name)}</option>`).join("");
+            const posOpts = positionsForUser.map(p => `<option value="${p.id}" ${u.position_id === p.id ? "selected" : ""}>${escapeHtml(p.name)}</option>`).join("");
+            const statusBadge = u.is_active
+              ? '<span class="badge-active">Активен</span>'
+              : '<span class="badge-inactive">Архивирован</span>';
+            const rowClass = u.is_active ? "" : "row-archived";
+            const actions = u.is_active ? `
+              <button class="btn-ghost btn-sm" onclick="App.userChangeGrade(${u.id})" title="Сменить грейд">Грейд</button>
+              <button class="btn-ghost btn-sm" onclick="App.userChangePosition(${u.id})" title="Сменить должность">Должность</button>
+              <button class="btn-ghost btn-sm" onclick="App.userResetPassword(${u.id})" title="Сбросить пароль">Сброс</button>
+              <button class="btn-ghost btn-sm row-action-danger" onclick="App.userDeactivate(${u.id})" title="Деактивировать (уволить)">✕</button>`
+              : `<button class="btn-accent btn-sm" onclick="App.userRestore(${u.id})" title="Восстановить">Восстановить</button>`;
+            return `<tr class="${rowClass}">
+              <td data-label="Сотрудник"><b>${escapeHtml(u.full_name)}</b><div class="text-muted">${escapeHtml(u.email)}</div></td>
+              <td data-label="Должность">
+                <select class="form-input inline-select" id="pos-${u.id}">${posOpts}</select>
+              </td>
+              <td data-label="Грейд">
+                <select class="form-input inline-select" id="grade-${u.id}">${gradeOpts}</select>
+              </td>
+              <td data-label="Статус">${statusBadge}</td>
+              <td data-label="Регистрация" class="text-muted">${escapeHtml(u.created_at)}</td>
+              <td data-label="Действия" class="row-action-buttons">${actions}</td>
+            </tr>`;
+          }).join("")}</tbody>
+        </table>`;
+    } catch (e) { el.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`; }
+  }
+
+  async function userChangeGrade(userId) {
+    const select = $(`#grade-${userId}`);
+    if (!select) return;
+    const gradeId = select.value;
+    try {
+      await api(`/api/admin/users/${userId}/grade`, { method: "PUT", body: { grade_id: gradeId } });
+      toast(`Грейд сотрудника обновлён`, "success");
+      loadUsersAdmin();
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  async function userChangePosition(userId) {
+    const select = $(`#pos-${userId}`);
+    if (!select) return;
+    const posId = parseInt(select.value);
+    try {
+      await api(`/api/admin/users/${userId}/position`, { method: "PUT", body: { position_id: posId } });
+      toast(`Должность сотрудника обновлена`, "success");
+      loadUsersAdmin();
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  async function userDeactivate(userId) {
+    if (!confirm("Деактивировать сотрудника? Он не сможет войти в систему, но расчёты сохранятся.")) return;
+    try {
+      await api(`/api/admin/users/${userId}`, { method: "DELETE" });
+      toast("Сотрудник деактивирован (архивирован)", "info");
+      loadUsersAdmin();
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  async function userRestore(userId) {
+    try {
+      await api(`/api/admin/users/${userId}/restore`, { method: "POST" });
+      toast("Сотрудник восстановлен", "success");
+      loadUsersAdmin();
+    } catch (e) { toast(e.message, "error"); }
+  }
+
+  async function userResetPassword(userId) {
+    if (!confirm("Сбросить пароль сотрудника на 'changeme123'? Сотрудник должен будет сменить его после входа.")) return;
+    try {
+      const r = await api(`/api/admin/users/${userId}/reset-password`, { method: "POST" });
+      toast(`Пароль сброшен. Новый пароль: ${r.new_password}`, "success");
+    } catch (e) { toast(e.message, "error"); }
+  }
+
   function escapeHtml(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c])); }
   function round2(v) { return Math.round((Number(v) + Number.EPSILON) * 100) / 100; }
   function formatMoney(v) { const n = Number(v || 0); return n.toLocaleString("ru-RU", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " ₽"; }
@@ -1481,6 +1572,7 @@ const App = (() => {
     openForgotPassword, closeForgotPassword, sendResetCode, verifyResetCode, resetPassword, forgotBackToStep1,
     saveCostPrice,
     loadGradesAdmin, openGradeEditor, closeGradeEditor, toggleGradePlan, addTierRow, saveGradeFromEditor, archiveGrade, restoreGrade,
+    loadUsersAdmin, userChangeGrade, userChangePosition, userDeactivate, userRestore, userResetPassword,
   };
 })();
 

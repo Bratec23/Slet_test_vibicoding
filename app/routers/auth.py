@@ -173,6 +173,8 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     user = db.get(User, uid)
     if not user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Пользователь не найден")
+    if not user.is_active:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Учётная запись деактивирована")
     return user
 
 
@@ -241,6 +243,9 @@ def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)
     if not user or not verify_password(payload.password, user.password_hash):
         log_event(db, request, "login", payload.email, success=False, user_id=(user.id if user else None), detail="bad password")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Неверная почта или пароль")
+    if not user.is_active:
+        log_event(db, request, "login", user.email, success=False, user_id=user.id, detail="account deactivated")
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Учётная запись деактивирована. Обратитесь к руководителю отдела.")
     token = create_access_token(subject=str(user.id))
     log_event(db, request, "login", user.email, success=True, user_id=user.id)
     return TokenOut(access_token=token, user=_user_out(user))
