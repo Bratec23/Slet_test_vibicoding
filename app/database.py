@@ -26,6 +26,12 @@ def _migrate(db) -> None:
         with engine.begin() as conn:
             conn.execute(text("ALTER TABLE grades ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 0"))
 
+    if insp.has_table("users"):
+        user_cols = {c["name"] for c in insp.get_columns("users")}
+        if "is_active" not in user_cols:
+            with engine.begin() as conn:
+                conn.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"))
+
 
 def init_db() -> None:
     db_path = settings.DATABASE_URL.replace("sqlite:///./", "")
