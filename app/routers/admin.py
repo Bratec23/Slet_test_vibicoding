@@ -32,6 +32,9 @@ class GradeIn(BaseModel):
     has_plan: bool = False
     plan_margin: Optional[float] = Field(default=None, ge=0)
     sort_order: int = Field(default=0, ge=0, le=999)
+    kpi2_enabled: bool = False
+    kpi2_bonus_percent: float = Field(default=5.0, ge=0, le=100)
+    kpi2_min_retention_pct: float = Field(default=80.0, ge=0, le=100)
     tiers: List[TierIn] = []
 
 
@@ -50,6 +53,9 @@ class GradeOut(BaseModel):
     has_plan: bool
     plan_margin: Optional[float] = None
     sort_order: int
+    kpi2_enabled: bool = False
+    kpi2_bonus_percent: float = 5.0
+    kpi2_min_retention_pct: float = 80.0
     is_active: bool
     tiers: List[TierOut] = []
 
@@ -67,6 +73,9 @@ def _grade_out(g: Grade, db: Session) -> dict:
         "has_plan": bool(g.has_plan),
         "plan_margin": (float(g.plan_margin) if g.plan_margin is not None else None),
         "sort_order": int(g.sort_order or 0),
+        "kpi2_enabled": bool(g.kpi2_enabled),
+        "kpi2_bonus_percent": float(g.kpi2_bonus_percent),
+        "kpi2_min_retention_pct": float(g.kpi2_min_retention_pct),
         "is_active": bool(g.is_active),
         "tiers": [{"id": t.id, "min_pct": float(t.min_pct), "bonus_percent": float(t.bonus_percent)} for t in tiers],
     }
@@ -99,6 +108,9 @@ def create_grade(payload: GradeIn, db: Session = Depends(get_db), head: User = D
         has_plan=payload.has_plan,
         plan_margin=payload.plan_margin if payload.has_plan else None,
         sort_order=payload.sort_order,
+        kpi2_enabled=payload.kpi2_enabled,
+        kpi2_bonus_percent=payload.kpi2_bonus_percent,
+        kpi2_min_retention_pct=payload.kpi2_min_retention_pct,
         is_active=True,
     )
     db.add(grade)
@@ -127,6 +139,9 @@ def update_grade(grade_id: str, payload: GradeIn, db: Session = Depends(get_db),
     grade.has_plan = payload.has_plan
     grade.plan_margin = payload.plan_margin if payload.has_plan else None
     grade.sort_order = payload.sort_order
+    grade.kpi2_enabled = payload.kpi2_enabled
+    grade.kpi2_bonus_percent = payload.kpi2_bonus_percent
+    grade.kpi2_min_retention_pct = payload.kpi2_min_retention_pct
 
     db.query(GradeTier).filter(GradeTier.grade_id == grade.id).delete()
     for t in payload.tiers:

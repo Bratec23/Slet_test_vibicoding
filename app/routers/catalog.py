@@ -40,6 +40,9 @@ class GradeOut(BaseModel):
     has_plan: bool
     plan_margin: Optional[float] = None
     sort_order: int = 0
+    kpi2_enabled: bool = False
+    kpi2_bonus_percent: float = 5.0
+    kpi2_min_retention_pct: float = 80.0
     is_active: bool
     tiers: List[TierOut] = []
 
@@ -73,6 +76,9 @@ def list_grades(db: Session = Depends(get_db)):
             has_plan=bool(g.has_plan),
             plan_margin=(float(g.plan_margin) if g.plan_margin is not None else None),
             sort_order=int(g.sort_order or 0),
+            kpi2_enabled=bool(g.kpi2_enabled),
+            kpi2_bonus_percent=float(g.kpi2_bonus_percent),
+            kpi2_min_retention_pct=float(g.kpi2_min_retention_pct),
             is_active=bool(g.is_active),
             tiers=[TierOut(min_pct=float(t.min_pct), bonus_percent=float(t.bonus_percent)) for t in tiers],
         ))

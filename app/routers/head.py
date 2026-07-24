@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+﻿from typing import List, Optional, Tuple
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -54,6 +54,10 @@ def _calc_metrics(rec: PayrollRecord, cost_price: float = 0.0) -> dict:
         "total_cost": total_cost, "cost_price": round(cost_price, 2),
         "profit": profit, "profitability_pct": profitability_pct,
         "fot_margin_pct": fot_margin_pct,
+        "kpi2_revenue": float(rec.kpi2_revenue),
+        "kpi2_bonus_amount": float(rec.kpi2_bonus_amount),
+        "kpi2_paid": bool(rec.kpi2_paid),
+        "kpi2_retention_pct": float(rec.kpi2_retention_pct),
     }
 
 
@@ -95,6 +99,10 @@ class MetricsRowOut(BaseModel):
     profitability_pct: Optional[float] = None
     fot_margin_pct: Optional[float] = None
     fot_status: Optional[str] = None
+    kpi2_revenue: float = 0
+    kpi2_bonus_amount: float = 0
+    kpi2_paid: bool = False
+    kpi2_retention_pct: float = 0
 
 
 class DashboardOut(BaseModel):
@@ -110,7 +118,7 @@ class DashboardOut(BaseModel):
 @router.get("/dashboard", response_model=DashboardOut)
 def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: User = Depends(get_current_head)):
     dept = db.get(Department, head.department_id)
-    dept_name = dept.name if dept else "—"
+    dept_name = dept.name if dept else "вЂ”"
     members_q = db.scalars(
         select(User).where(User.department_id == head.department_id, User.role == "manager", User.is_active.is_(True)).order_by(User.full_name)
     ).all()
@@ -119,7 +127,7 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
     totals = {
         "margin": 0.0, "margin_net": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
         "office": 0.0, "labor_cost": 0.0, "operating_cost": 0.0, "total_cost": 0.0,
-        "cost_price": 0.0, "profit": 0.0, "managers_with_data": 0,
+        "cost_price": 0.0, "profit": 0.0, "kpi2_revenue": 0.0, "kpi2_bonus_amount": 0.0, "managers_with_data": 0,
     }
     for m in members_q:
         rec = _latest_record_for(m.id, period, db)
@@ -138,7 +146,7 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
             }
         members.append(TeamMemberOut(
             user_id=m.id, full_name=m.full_name,
-            position_name=m.position.name if m.position else "—",
+            position_name=m.position.name if m.position else "вЂ”",
             grade_name=(m.grade.name if m.grade else None),
             base_salary=(float(m.grade.base_salary) if m.grade else None),
             record=rec_dict,
@@ -153,6 +161,8 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
             for k in ("margin", "margin_net", "gross", "ndfl", "insurance", "vat", "office", "labor_cost", "operating_cost", "total_cost", "cost_price", "profit"):
                 totals[k] += cm[k]
             totals["managers_with_data"] += 1
+            totals["kpi2_revenue"] += cm["kpi2_revenue"]
+            totals["kpi2_bonus_amount"] += cm["kpi2_bonus_amount"]
         else:
             metrics.append(MetricsRowOut(user_id=m.id, full_name=m.full_name, has_record=False))
     for k in list(totals.keys()):
@@ -214,7 +224,7 @@ class ProfitabilityResponse(BaseModel):
 @router.post("/profitability", response_model=ProfitabilityResponse)
 def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), head: User = Depends(get_current_head)):
     dept = db.get(Department, head.department_id)
-    dept_name = dept.name if dept else "—"
+    dept_name = dept.name if dept else "вЂ”"
     rows: list[ProfitabilityRowOut] = []
     totals = {
         "margin": 0.0, "margin_net": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
@@ -224,7 +234,7 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
     for item in payload.items:
         user = db.get(User, item.user_id)
         if not user or user.department_id != head.department_id or user.role != "manager":
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Менеджер {item.user_id} не найден или не входит в ваш отдел")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"РњРµРЅРµРґР¶РµСЂ {item.user_id} РЅРµ РЅР°Р№РґРµРЅ РёР»Рё РЅРµ РІС…РѕРґРёС‚ РІ РІР°С€ РѕС‚РґРµР»")
         rec = _latest_record_for(user.id, payload.period, db)
         if not rec:
             rows.append(ProfitabilityRowOut(
@@ -245,6 +255,8 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
             totals[k] += cm[k]
         totals["cost_price"] += cp
         totals["managers_with_data"] += 1
+        totals["kpi2_revenue"] += cm["kpi2_revenue"]
+        totals["kpi2_bonus_amount"] += cm["kpi2_bonus_amount"]
     for k in list(totals.keys()):
         if k != "managers_with_data":
             totals[k] = round(totals[k], 2)
@@ -257,7 +269,7 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
 @router.get("/costs", response_model=dict)
 def costs(period: str = Query(...), db: Session = Depends(get_db), head: User = Depends(get_current_head)):
     dept = db.get(Department, head.department_id)
-    dept_name = dept.name if dept else "—"
+    dept_name = dept.name if dept else "вЂ”"
     managers = db.scalars(
         select(User).where(User.department_id == head.department_id, User.role == "manager", User.is_active.is_(True))
     ).all()
@@ -339,7 +351,7 @@ class HistoryOut(BaseModel):
 def history(from_period: str = Query(..., alias="from"), to_period: str = Query(..., alias="to"),
             db: Session = Depends(get_db), head: User = Depends(get_current_head)):
     dept = db.get(Department, head.department_id)
-    dept_name = dept.name if dept else "—"
+    dept_name = dept.name if dept else "вЂ”"
     managers = db.scalars(
         select(User).where(User.department_id == head.department_id, User.role == "manager", User.is_active.is_(True)).order_by(User.full_name)
     ).all()

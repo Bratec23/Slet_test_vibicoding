@@ -26,6 +26,8 @@ class PayrollCalcIn(BaseModel):
     service_margin: float = Field(ge=0, default=0)
     goods_margin: float = Field(ge=0, default=0)
     tax_rate: float = Field(ge=0, le=100, default=13.0)
+    kpi2_revenue: float = Field(ge=0, default=0)
+    kpi2_retention_pct: float = Field(ge=0, le=100, default=0)
 
 
 class PayrollOut(BaseModel):
@@ -53,6 +55,13 @@ class PayrollOut(BaseModel):
     margin_total: float = 0
     margin_for_plan: float = 0
     performance_pct: Optional[float] = None
+    kpi2_enabled: bool = False
+    kpi2_revenue: float = 0
+    kpi2_retention_pct: float = 0
+    kpi2_bonus_amount: float = 0
+    kpi2_paid: bool = False
+    kpi2_bonus_percent: float = 5.0
+    kpi2_min_retention_pct: float = 80.0
 
     class Config:
         from_attributes = False
@@ -86,12 +95,21 @@ def _resolve_bonus_percent(grade: Grade, margin_for_plan: float, db: Session) ->
     return 0.0
 
 
-def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: PayrollCalcIn) -> dict:
+def _calc_kpi2(grade: Grade, kpi2_revenue: float, kpi2_retention_pct: float) -> tuple[float, bool]:
+    if not grade.kpi2_enabled or kpi2_revenue <= 0:
+        return 0.0, False
+    if float(kpi2_retention_pct) < float(grade.kpi2_min_retention_pct):
+        return 0.0, False
+    bonus = round(float(kpi2_revenue) * float(grade.kpi2_bonus_percent) / 100, 2)
+    return bonus, True
+
+
+def _calc(base_salary: float, bonus_percent: float, service_factor: float, p: PayrollCalcIn, kpi2_bonus: float = 0) -> dict:
     accrued_base = round(base_salary * p.worked_days / p.working_days, 2)
     services_bonus = round(p.service_margin * service_factor * bonus_percent / 100, 2)
     goods_bonus = round(p.goods_margin * bonus_percent / 100, 2)
     bonus_total = round(services_bonus + goods_bonus, 2)
-    gross_pay = round(accrued_base + bonus_total, 2)
+    gross_pay = round(accrued_base + bonus_total + kpi2_bonus, 2)
     tax_amount = round(gross_pay * p.tax_rate / 100, 2)
     net_pay = round(gross_pay - tax_amount, 2)
     return {
@@ -135,6 +153,13 @@ def _payroll_out(rec: PayrollRecord) -> dict:
         "margin_total": round(float(rec.service_margin) + float(rec.goods_margin), 2),
         "margin_for_plan": float(rec.margin_for_plan),
         "performance_pct": performance_pct,
+        "kpi2_enabled": bool(grade.kpi2_enabled) if grade else False,
+        "kpi2_revenue": float(rec.kpi2_revenue),
+        "kpi2_retention_pct": float(rec.kpi2_retention_pct),
+        "kpi2_bonus_amount": float(rec.kpi2_bonus_amount),
+        "kpi2_paid": bool(rec.kpi2_paid),
+        "kpi2_bonus_percent": float(grade.kpi2_bonus_percent) if grade else 5.0,
+        "kpi2_min_retention_pct": float(grade.kpi2_min_retention_pct) if grade else 80.0,
     }
 
 
@@ -148,7 +173,8 @@ def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), use
     service_factor = float(grade.service_factor)
     margin_for_plan = _margin_for_plan(payload.service_margin, payload.goods_margin)
     bonus_percent = _resolve_bonus_percent(grade, margin_for_plan, db)
-    calc = _calc(base_salary, bonus_percent, service_factor, payload)
+    kpi2_bonus, kpi2_paid = _calc_kpi2(grade, payload.kpi2_revenue, payload.kpi2_retention_pct)
+    calc = _calc(base_salary, bonus_percent, service_factor, payload, kpi2_bonus)
     if grade.has_plan and grade.plan_margin is not None and float(grade.plan_margin) > 0:
         performance_pct = round(margin_for_plan / float(grade.plan_margin) * 100, 2)
     else:
@@ -168,6 +194,10 @@ def calculate_payroll(payload: PayrollCalcIn, db: Session = Depends(get_db), use
         plan_margin=(float(grade.plan_margin) if grade.plan_margin is not None else None),
         margin_for_plan=margin_for_plan,
         performance_pct=performance_pct,
+        kpi2_revenue=payload.kpi2_revenue,
+        kpi2_retention_pct=payload.kpi2_retention_pct,
+        kpi2_bonus_amount=kpi2_bonus,
+        kpi2_paid=kpi2_paid,
         **calc,
     )
     db.add(record)

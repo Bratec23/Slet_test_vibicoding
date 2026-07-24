@@ -45,6 +45,10 @@ class Grade(Base):
     has_plan: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     plan_margin: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, default=None)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    kpi2_enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    kpi2_bonus_percent: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=5.0)
+    kpi2_min_retention_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=80.0)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
@@ -111,6 +115,10 @@ class PayrollRecord(Base):
     plan_margin: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True, default=None)
     margin_for_plan: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
     performance_pct: Mapped[float | None] = mapped_column(Numeric(7, 2), nullable=True, default=None)
+    kpi2_revenue: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    kpi2_retention_pct: Mapped[float] = mapped_column(Numeric(5, 2), nullable=False, default=0)
+    kpi2_bonus_amount: Mapped[float] = mapped_column(Numeric(14, 2), nullable=False, default=0)
+    kpi2_paid: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     user: Mapped["User"] = relationship("User", back_populates="payrolls")

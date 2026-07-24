@@ -106,6 +106,9 @@ class GradeBrief(BaseModel):
     has_plan: bool | None = None
     plan_margin: float | None = None
     tiers: list[TierBrief] = []
+    kpi2_enabled: bool = False
+    kpi2_bonus_percent: float = 5.0
+    kpi2_min_retention_pct: float = 80.0
 
 
 class UserOut(BaseModel):
@@ -143,6 +146,9 @@ def _user_out(user: User) -> dict:
             "has_plan": bool(grade_obj.has_plan),
             "plan_margin": (float(grade_obj.plan_margin) if grade_obj.plan_margin is not None else None),
             "tiers": [{"min_pct": float(t.min_pct), "bonus_percent": float(t.bonus_percent)} for t in grade_obj.tiers] if grade_obj.tiers else [],
+            "kpi2_enabled": bool(grade_obj.kpi2_enabled),
+            "kpi2_bonus_percent": float(grade_obj.kpi2_bonus_percent),
+            "kpi2_min_retention_pct": float(grade_obj.kpi2_min_retention_pct),
         }
     return {
         "id": user.id,
