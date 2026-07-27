@@ -73,6 +73,13 @@ def generate_payroll_xlsx(record: PayrollRecord, user: User) -> bytes:
         ("Коэффициент услуг", float(record.service_factor), ""),
         ("НДФЛ", float(record.tax_rate), "%"),
     ]
+
+    if _money(record.kpi2_revenue) > 0:
+        params.append(("KPI2 — приход ден. средств", _money(record.kpi2_revenue), "₽"))
+        params.append(("KPI2 — сохранность клиентов", float(record.kpi2_retention_pct), "%"))
+        if record.grade and record.grade.kpi2_enabled:
+            params.append(("KPI2 — процент премии", float(record.grade.kpi2_bonus_percent), "%"))
+            params.append(("KPI2 — мин. сохранность", float(record.grade.kpi2_min_retention_pct), "%"))
     for label, value, unit in params:
         ws.cell(row=row, column=1, value=label).font = LABEL_FONT
         ws.cell(row=row, column=1).border = THIN_BORDER
@@ -98,14 +105,24 @@ def generate_payroll_xlsx(record: PayrollRecord, user: User) -> bytes:
     ws.row_dimensions[row].height = 22
     row += 1
 
+    total_bonus_with_kpi2 = round(_money(record.bonus_total) + _money(record.kpi2_bonus_amount), 2)
+
     results = [
         ("Начислено по окладу", _money(record.accrued_base)),
         ("Премия за услуги", _money(record.services_bonus)),
         ("Премия за товар", _money(record.goods_bonus)),
-        ("Премия итого", _money(record.bonus_total)),
+    ]
+
+    if _money(record.kpi2_bonus_amount) > 0:
+        results.append(("Премия за сохранность (KPI2)", _money(record.kpi2_bonus_amount)))
+    elif record.kpi2_paid is False and _money(record.kpi2_revenue) > 0:
+        results.append(("Премия за сохранность (KPI2) — не выплач.", 0.0))
+
+    results.extend([
+        ("Премия итого", total_bonus_with_kpi2),
         ("Начислено всего (gross)", _money(record.gross_pay)),
         ("НДФЛ", _money(record.tax_amount)),
-    ]
+    ])
     for label, value in results:
         ws.cell(row=row, column=1, value=label).font = VALUE_FONT
         ws.cell(row=row, column=1).border = THIN_BORDER

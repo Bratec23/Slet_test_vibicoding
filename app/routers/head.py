@@ -56,8 +56,6 @@ def _calc_metrics(rec: PayrollRecord, cost_price: float = 0.0) -> dict:
         "fot_margin_pct": fot_margin_pct,
         "kpi2_revenue": float(rec.kpi2_revenue),
         "kpi2_bonus_amount": float(rec.kpi2_bonus_amount),
-        "kpi2_paid": bool(rec.kpi2_paid),
-        "kpi2_retention_pct": float(rec.kpi2_retention_pct),
     }
 
 
@@ -138,10 +136,14 @@ def dashboard(period: str = Query(...), db: Session = Depends(get_db), head: Use
                 "service_margin": float(rec.service_margin),
                 "goods_margin": float(rec.goods_margin),
                 "bonus_total": float(rec.bonus_total),
+                "bonus_total_with_kpi2": round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount), 2),
                 "gross_pay": float(rec.gross_pay),
                 "tax_amount": float(rec.tax_amount),
                 "net_pay": float(rec.net_pay),
                 "base_salary": float(rec.base_salary),
+                "kpi2_revenue": float(rec.kpi2_revenue),
+                "kpi2_bonus_amount": float(rec.kpi2_bonus_amount),
+                "kpi2_paid": bool(rec.kpi2_paid),
                 "created_at": rec.created_at.strftime("%d.%m.%Y %H:%M") if rec.created_at else "",
             }
         members.append(TeamMemberOut(
@@ -229,7 +231,8 @@ def profitability(payload: ProfitabilityRequest, db: Session = Depends(get_db), 
     totals = {
         "margin": 0.0, "margin_net": 0.0, "gross": 0.0, "ndfl": 0.0, "insurance": 0.0, "vat": 0.0,
         "office": 0.0, "labor_cost": 0.0, "operating_cost": 0.0, "total_cost": 0.0,
-        "profit": 0.0, "cost_price": 0.0, "managers_with_data": 0,
+        "profit": 0.0, "cost_price": 0.0, "kpi2_revenue": 0.0, "kpi2_bonus_amount": 0.0,
+        "managers_with_data": 0,
     }
     for item in payload.items:
         user = db.get(User, item.user_id)

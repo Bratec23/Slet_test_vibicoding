@@ -55,6 +55,7 @@ class PayrollOut(BaseModel):
     margin_total: float = 0
     margin_for_plan: float = 0
     performance_pct: Optional[float] = None
+    bonus_total_with_kpi2: float = 0
     kpi2_enabled: bool = False
     kpi2_revenue: float = 0
     kpi2_retention_pct: float = 0
@@ -142,6 +143,7 @@ def _payroll_out(rec: PayrollRecord) -> dict:
         "services_bonus": float(rec.services_bonus),
         "goods_bonus": float(rec.goods_bonus),
         "bonus_total": float(rec.bonus_total),
+        "bonus_total_with_kpi2": round(float(rec.bonus_total) + float(rec.kpi2_bonus_amount), 2),
         "tax_rate": float(rec.tax_rate),
         "gross_pay": float(rec.gross_pay),
         "tax_amount": float(rec.tax_amount),
@@ -224,6 +226,8 @@ class SummaryOut(BaseModel):
     services_bonus: float
     goods_bonus: float
     bonus_total: float
+    bonus_total_with_kpi2: float
+    kpi2_bonus_amount: float
     gross_pay: float
     tax_amount: float
     net_pay: float
@@ -251,6 +255,8 @@ def summary(db: Session = Depends(get_db), user: User = Depends(get_current_user
             services_bonus=float(r.services_bonus),
             goods_bonus=float(r.goods_bonus),
             bonus_total=float(r.bonus_total),
+            bonus_total_with_kpi2=round(float(r.bonus_total) + float(r.kpi2_bonus_amount), 2),
+            kpi2_bonus_amount=float(r.kpi2_bonus_amount),
             gross_pay=float(r.gross_pay),
             tax_amount=float(r.tax_amount),
             net_pay=float(r.net_pay),

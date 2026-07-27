@@ -32,6 +32,31 @@ def _migrate(db) -> None:
             with engine.begin() as conn:
                 conn.execute(text("ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT 1"))
 
+    if insp.has_table("grades"):
+        grade_cols = {c["name"] for c in insp.get_columns("grades")}
+        migrations = [
+            ("kpi2_enabled", "BOOLEAN NOT NULL DEFAULT 0"),
+            ("kpi2_bonus_percent", "NUMERIC(5,2) NOT NULL DEFAULT 5.0"),
+            ("kpi2_min_retention_pct", "NUMERIC(5,2) NOT NULL DEFAULT 80.0"),
+        ]
+        for col_name, col_def in migrations:
+            if col_name not in grade_cols:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE grades ADD COLUMN {col_name} {col_def}"))
+
+    if insp.has_table("payroll_records"):
+        pr_cols = {c["name"] for c in insp.get_columns("payroll_records")}
+        pr_migrations = [
+            ("kpi2_revenue", "NUMERIC(14,2) NOT NULL DEFAULT 0"),
+            ("kpi2_retention_pct", "NUMERIC(5,2) NOT NULL DEFAULT 0"),
+            ("kpi2_bonus_amount", "NUMERIC(14,2) NOT NULL DEFAULT 0"),
+            ("kpi2_paid", "BOOLEAN NOT NULL DEFAULT 0"),
+        ]
+        for col_name, col_def in pr_migrations:
+            if col_name not in pr_cols:
+                with engine.begin() as conn:
+                    conn.execute(text(f"ALTER TABLE payroll_records ADD COLUMN {col_name} {col_def}"))
+
 
 def init_db() -> None:
     db_path = settings.DATABASE_URL.replace("sqlite:///./", "")

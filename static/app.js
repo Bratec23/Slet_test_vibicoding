@@ -607,7 +607,8 @@ const App = (() => {
           <div class="cr-item"><div class="cr-label">Начислено (оклад)</div><div class="cr-value">${formatMoney(r.accrued_base)}</div></div>
           <div class="cr-item"><div class="cr-label">Премия за услуги</div><div class="cr-value">${formatMoney(r.services_bonus)}</div></div>
           <div class="cr-item"><div class="cr-label">Премия за товар</div><div class="cr-value">${formatMoney(r.goods_bonus)}</div></div>
-          <div class="cr-item"><div class="cr-label">Премия итого (${r.bonus_percent}%)</div><div class="cr-value">${formatMoney(r.bonus_total)}</div></div>
+          ${r.kpi2_bonus_amount > 0 ? `<div class="cr-item"><div class="cr-label">Премия за сохранность (KPI2)</div><div class="cr-value">${formatMoney(r.kpi2_bonus_amount)}</div></div>` : ""}
+          <div class="cr-item"><div class="cr-label">Премия итого</div><div class="cr-value">${formatMoney(r.bonus_total_with_kpi2)}</div></div>
           <div class="cr-item"><div class="cr-label">Начислено всего</div><div class="cr-value">${formatMoney(r.gross_pay)}</div></div>
           <div class="cr-item"><div class="cr-label">НДФЛ (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
           <div class="cr-item cr-net"><div class="cr-label">К выплате</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
@@ -646,7 +647,7 @@ const App = (() => {
             <td data-label="Дни" class="tnum">${r.worked_days}/${r.working_days}</td>
             <td data-label="Маржа усл./товар" class="tnum">${formatMoney(r.service_margin)} / ${formatMoney(r.goods_margin)}</td>
             <td data-label="Оклад" class="tnum">${formatMoney(r.base_salary)}</td>
-            <td data-label="Премия" class="tnum">${formatMoney(r.bonus_total)}</td>
+            <td data-label="Премия" class="tnum">${formatMoney(r.bonus_total_with_kpi2 || r.bonus_total)}</td>
             <td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td>
             <td data-label="НДФЛ" class="tnum">-${formatMoney(r.tax_amount)}</td>
             <td data-label="К выплате" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
@@ -730,7 +731,8 @@ const App = (() => {
           <div class="tt-row"><span>Оклад</span><b>${formatMoney(r.accrued_base)}</b></div>
           <div class="tt-row"><span>Премия услуг</span><b>${formatMoney(r.services_bonus)}</b></div>
           <div class="tt-row"><span>Премия товара</span><b>${formatMoney(r.goods_bonus)}</b></div>
-          <div class="tt-row"><span>Премия итого</span><b>${formatMoney(r.bonus_total)}</b></div>
+          <div class="tt-row"><span>Премия итого</span><b>${formatMoney(r.bonus_total_with_kpi2 || r.bonus_total)}</b></div>
+          ${r.kpi2_bonus_amount > 0 ? `<div class="tt-row"><span>KPI2 (сохранность)</span><b>${formatMoney(r.kpi2_bonus_amount)}</b></div>` : ""}
           <div class="tt-row"><span>Gross</span><b>${formatMoney(r.gross_pay)}</b></div>
           <div class="tt-row"><span>НДФЛ</span><b>-${formatMoney(r.tax_amount)}</b></div>
           <div class="tt-row tt-net"><span>К выплате</span><b>${formatMoney(r.net_pay)}</b></div>
@@ -755,7 +757,7 @@ const App = (() => {
           <td data-label="Оклад" class="tnum">${formatMoney(r.accrued_base)}</td>
           <td data-label="Премия услуг" class="tnum">${formatMoney(r.services_bonus)}</td>
           <td data-label="Премия товара" class="tnum">${formatMoney(r.goods_bonus)}</td>
-          <td data-label="Премия итого" class="tnum">${formatMoney(r.bonus_total)}</td>
+          <td data-label="Премия итого" class="tnum">${formatMoney(r.bonus_total_with_kpi2 || r.bonus_total)}</td>
           <td data-label="Gross" class="tnum">${formatMoney(r.gross_pay)}</td>
           <td data-label="НДФЛ" class="tnum">-${formatMoney(r.tax_amount)}</td>
           <td data-label="К выплате" class="tnum net-cell">${formatMoney(r.net_pay)}</td>
@@ -1000,7 +1002,7 @@ const App = (() => {
         <tbody>${members.map(m => `<tr>
           <td data-label="Менеджер"><b>${escapeHtml(m.full_name)}</b></td>
           ${m.record
-            ? `<td data-label="Маржа услуг" class="tnum">${formatMoney(m.record.service_margin)}</td><td data-label="Маржа товара" class="tnum">${formatMoney(m.record.goods_margin)}</td><td data-label="Премия" class="tnum">${formatMoney(m.record.bonus_total)}</td>`
+            ? `<td data-label="Маржа услуг" class="tnum">${formatMoney(m.record.service_margin)}</td><td data-label="Маржа товара" class="tnum">${formatMoney(m.record.goods_margin)}</td><td data-label="Премия" class="tnum">${formatMoney(m.record.bonus_total_with_kpi2 || m.record.bonus_total)}</td>`
             : `<td colspan="3" class="text-muted" style="text-align:center">Нет расчёта</td>`}
         </tr>`).join("")}</tbody>
       </table>`;
