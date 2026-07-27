@@ -196,7 +196,7 @@ const App = (() => {
     document.querySelectorAll(".page").forEach(p => p.style.display = "none");
     const page = $(`#page-${route}`);
     if (page) page.style.display = "block";
-    if (route === "payroll") { attachAllMasksIn($("#page-payroll")); loadGradePill(); loadHistory(); initCostPriceBlock(); }
+    if (route === "payroll") { attachAllMasksIn($("#page-payroll")); loadGradePill(); loadHistory(); initCostPriceBlock(); ensureKpi2Visibility(); attachKpi2Listeners(); }
     if (route === "profile") { loadProfile(); setTimeout(() => attachAllMasksIn($("#page-profile").parentNode), 50); }
     if (route === "head-dashboard") { loadDashboard(); }
     if (route === "head-profitability") { loadProfitForm(); setTimeout(attachMasksProfit, 50); }
@@ -257,6 +257,9 @@ const App = (() => {
     $("#ge-sort").value = isEdit ? g.sort_order : (gradesAdminCache.length + 1);
     $("#ge-has-plan").checked = isEdit ? g.has_plan : false;
     $("#ge-plan").value = isEdit && g.plan_margin != null ? formatNumber(g.plan_margin) : formatNumber(0);
+    $("#ge-kpi2-enabled").checked = isEdit ? g.kpi2_enabled : false;
+    $("#ge-kpi2-bonus").value = isEdit ? g.kpi2_bonus_percent : 5;
+    $("#ge-kpi2-min").value = isEdit ? g.kpi2_min_retention_pct : 80;
     const tiersList = $("#ge-tiers-list");
     tiersList.innerHTML = "";
     if (isEdit && g.tiers && g.tiers.length) {
@@ -322,6 +325,9 @@ const App = (() => {
       sort_order: parseInt($("#ge-sort").value) || 0,
       has_plan: hasPlan,
       plan_margin: hasPlan ? parseNumInput($("#ge-plan")) : null,
+      kpi2_enabled: $("#ge-kpi2-enabled").checked,
+      kpi2_bonus_percent: parseFloat($("#ge-kpi2-bonus").value) || 5,
+      kpi2_min_retention_pct: parseFloat($("#ge-kpi2-min").value) || 80,
       tiers: hasPlan ? collectTiers() : [],
     };
     if (!body.name) { errEl.textContent = "Введите название"; errEl.style.display = "block"; return; }
@@ -531,6 +537,55 @@ const App = (() => {
     if (historyOpen) loadSummary();
   }
 
+  let kpi2Open = false;
+  function toggleKpi2() {
+    kpi2Open = !kpi2Open;
+    const fields = $("#kpi2-fields");
+    const btn = $("#kpi2-toggle");
+    if (fields) fields.style.display = kpi2Open ? "block" : "none";
+    if (btn) {
+      btn.innerHTML = kpi2Open
+        ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg> KPI 2 — заполнить приход и сохранность'
+        : '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg> KPI 2 — премия за сохранность клиентов';
+    }
+    updateKpi2Hint();
+  }
+
+  function updateKpi2Hint() {
+    const hint = $("#kpi2-hint");
+    if (!hint) return;
+    const user = getUser();
+    const g = (user && user.grade) || {};
+    if (!g.kpi2_enabled) { hint.textContent = ""; hint.className = "kpi2-hint"; return; }
+    const rev = parseNumInput($("#kpi2-revenue"));
+    const ret = parseFloat($("#kpi2-retention").value) || 0;
+    const minRet = g.kpi2_min_retention_pct || 80;
+    const pct = g.kpi2_bonus_percent || 5;
+    if (rev <= 0) { hint.textContent = "Введите приход — премия рассчитается автоматически"; hint.className = "kpi2-hint"; return; }
+    if (ret < minRet) {
+      hint.textContent = `Сохранность ${ret}% < ${minRet}% — премия KPI2 НЕ выплачивается`;
+      hint.className = "kpi2-hint kpi2-hint-blocked";
+    } else {
+      const bonus = round2(rev * pct / 100);
+      hint.textContent = `Премия KPI2: ${rev.toLocaleString("ru-RU")} × ${pct}% = ${formatMoney(bonus)} (сохранность ${ret}% ≥ ${minRet}%)`;
+      hint.className = "kpi2-hint kpi2-hint-ok";
+    }
+  }
+
+  function ensureKpi2Visibility() {
+    const user = getUser();
+    const g = (user && user.grade) || {};
+    const sec = $("#kpi2-section");
+    if (sec) sec.style.display = g.kpi2_enabled ? "block" : "none";
+  }
+
+  function attachKpi2Listeners() {
+    const rev = $("#kpi2-revenue");
+    const ret = $("#kpi2-retention");
+    if (rev && !rev.dataset.kpi2attached) { rev.dataset.kpi2attached = "1"; rev.addEventListener("input", updateKpi2Hint); }
+    if (ret && !ret.dataset.kpi2attached) { ret.dataset.kpi2attached = "1"; ret.addEventListener("input", updateKpi2Hint); }
+  }
+
   async function calculate() {
     const body = {
       period: ($("#calc-period").value || new Date().toISOString().slice(0, 7)),
@@ -539,6 +594,8 @@ const App = (() => {
       service_margin: parseNumInput($("#calc-svc-margin")),
       goods_margin: parseNumInput($("#calc-goods-margin")),
       tax_rate: parseFloat($("#calc-tax").value) || 13,
+      kpi2_revenue: parseNumInput($("#kpi2-revenue")),
+      kpi2_retention_pct: parseFloat($("#kpi2-retention").value) || 0,
     };
     const resBox = $("#calc-result");
     resBox.style.display = "none";
@@ -555,7 +612,16 @@ const App = (() => {
           <div class="cr-item"><div class="cr-label">НДФЛ (${r.tax_rate}%)</div><div class="cr-value">-${formatMoney(r.tax_amount)}</div></div>
           <div class="cr-item cr-net"><div class="cr-label">К выплате</div><div class="cr-value">${formatMoney(r.net_pay)}</div></div>
         </div>
-        <div class="cr-actions">
+        
+        ${r.kpi2_enabled && r.kpi2_revenue > 0 ? `
+        <div class="kpi2-result-card ${r.kpi2_paid ? "kpi2-paid" : "kpi2-blocked"}">
+          <div class="kpi2-result-title">KPI 2 — премия за сохранность клиентов</div>
+          <div class="kpi2-result-row"><span>Приход:</span> <b>${formatMoney(r.kpi2_revenue)}</b></div>
+          <div class="kpi2-result-row"><span>Сохранность клиентов:</span> <b>${r.kpi2_retention_pct}%</b> ${r.kpi2_paid ? "✓" : "✗ < (" + r.kpi2_min_retention_pct + "%)"}</div>
+          <div class="kpi2-result-row"><span>Премия (${r.kpi2_bonus_percent}%):</span> <b>${formatMoney(r.kpi2_bonus_amount)}</b></div>
+          <div class="kpi2-result-status ${r.kpi2_paid ? "kpi2-status-ok" : "kpi2-status-no"}">${r.kpi2_paid ? "Премия выплачивается" : "Премия не выплачивается — сохранность ниже " + r.kpi2_min_retention_pct + "%"}</div>
+        </div>` : ""}
+<div class="cr-actions">
           <button class="btn-excel" onclick="App.exportRecord(${r.id})"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Скачать Excel</button>
         </div>`;
       resBox.style.display = "block";
@@ -1573,6 +1639,7 @@ const App = (() => {
     saveCostPrice,
     loadGradesAdmin, openGradeEditor, closeGradeEditor, toggleGradePlan, addTierRow, saveGradeFromEditor, archiveGrade, restoreGrade,
     loadUsersAdmin, userChangeGrade, userChangePosition, userDeactivate, userRestore, userResetPassword,
+    toggleKpi2, updateKpi2Hint, ensureKpi2Visibility, attachKpi2Listeners,
   };
 })();
 

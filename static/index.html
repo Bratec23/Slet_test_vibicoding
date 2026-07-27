@@ -269,6 +269,26 @@
               <div class="form-group"><label class="form-label" for="calc-goods-margin">Маржа с товара</label><input class="form-input number-input" id="calc-goods-margin" type="number" min="0" step="0.01" value="0" required></div>
             </div>
             <button class="btn-primary" type="submit">Рассчитать и сохранить</button>
+
+            <div id="kpi2-section" style="display:none; margin-top: var(--space-5);">
+              <button type="button" class="btn-info kpi2-toggle" id="kpi2-toggle" onclick="App.toggleKpi2()">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                KPI 2 — премия за сохранность клиентов
+              </button>
+              <div id="kpi2-fields" style="display:none; margin-top: var(--space-3); padding: var(--space-4); background: var(--color-surface-2); border-radius: var(--radius-md); border: 1px solid var(--color-divider);">
+                <div class="form-row">
+                  <div class="form-group">
+                    <label class="form-label" for="kpi2-revenue">Приход денежных средств, ₽</label>
+                    <input class="form-input number-input" id="kpi2-revenue" type="number" min="0" step="0.01" value="0">
+                  </div>
+                  <div class="form-group">
+                    <label class="form-label" for="kpi2-retention">Сохранность клиентов, %</label>
+                    <input class="form-input" id="kpi2-retention" type="number" min="0" max="100" step="0.1" value="0">
+                  </div>
+                </div>
+                <div id="kpi2-hint" class="kpi2-hint"></div>
+              </div>
+            </div>
           </form>
           <div id="calc-result" class="calc-result" style="display:none"></div>
         </div>
@@ -560,7 +580,29 @@
           </div>
           <small style="color:var(--color-text-faint);font-size:var(--text-xs)">Выполнение % плана → % премии. Например: 90% выполнения → 4% премии.</small>
           <div id="ge-tiers-list"></div>
+     
+        <div class="kpi2-editor-section">
+          <div class="card-inner-header">
+            <div class="card-title">KPI 2 — премия за сохранность клиентов</div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label"><input type="checkbox" id="ge-kpi2-enabled"> KPI 2 включен для этого грейда</label>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="ge-kpi2-bonus">Процент премии от прихода, %</label>
+              <input class="form-input" id="ge-kpi2-bonus" type="number" min="0" max="100" step="0.1" value="5">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="ge-kpi2-min">Минимальная сохранность клиентов, %</label>
+              <input class="form-input" id="ge-kpi2-min" type="number" min="0" max="100" step="0.1" value="80">
+            </div>
+          </div>
+          <small style="color:var(--color-text-faint);font-size:var(--text-xs)">Премия KPI2 = приход × %, выплачивается только если сохранность ≥ минимального значения.</small>
         </div>
+   </div>
         <div id="grade-editor-error" class="auth-error" style="display:none"></div>
         <div style="display:flex;gap:var(--space-2);margin-top:var(--space-4)">
           <button class="btn-primary" onclick="App.saveGradeFromEditor()" style="flex:1">Сохранить</button>
